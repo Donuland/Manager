@@ -720,6 +720,7 @@ async function updatePrediction() {
 function gatherEventData() {
     return {
         name: document.getElementById('eventName').value.trim(),
+        category: document.getElementById('eventCategory').value.trim(),
         city: document.getElementById('eventCity').value.trim(),
         date: document.getElementById('eventDate').value,
         duration: parseInt(document.getElementById('eventDuration').value) || 1,
@@ -792,43 +793,77 @@ function calculateHistoricalFactor(eventData) {
         return 1.0; // Neutrální pokud nejsou data
     }
     
-    // Hledáme podobné akce
-    const similarEvents = historicalData.filter(row => {
-        const rowCity = (row['Město'] || row['Lokace'] || '').toLowerCase();
-        const eventCity = eventData.city.toLowerCase();
-        
-        // Podobné město nebo název akce
-        return rowCity.includes(eventCity) || eventCity.includes(rowCity) ||
-               (row['Název akce'] || '').toLowerCase().includes(eventData.name.toLowerCase());
+    console.log('🔍 Hledám podobné akce pro:', eventData.name);
+    
+    // Hledáme PŘESNĚ STEJNÝ název akce
+    const exactMatches = historicalData.filter(row => {
+        const rowName = (row['Název akce'] || '').toLowerCase().trim();
+        const eventName = eventData.name.toLowerCase().trim();
+        return rowName === eventName || rowName.includes(eventName) || eventName.includes(rowName);
     });
     
-    if (similarEvents.length === 0) {
-        // Použijeme průměr ze všech akcí
-        const avgSales = historicalData.reduce((sum, row) => {
-            const sales = parseFloat(row['Skutečný prodej'] || row['N'] || 0);
-            const visitors = parseFloat(row['Návštěvnost'] || 0);
-            return sum + (visitors > 0 ? sales / visitors : 0);
-        }, 0) / Math.max(historicalData.length, 1);
+    if (exactMatches.length > 0) {
+        console.log(`🎯 Nalezeno ${exactMatches.length} přesných shod pro "${eventData.name}"`);
         
-        return Math.max(avgSales / 0.12, 0.5); // Relativně k základní konverzi
+        // Použijeme data z přesně stejných akcí
+        const salesData = exactMatches.map(row => {
+            const sales = parseFloat(row['realně prodáno'] || 0);
+            const visitors = parseFloat(row['návstěvnost'] || 0);
+            return { sales, visitors, rating: parseFloat(row['hodnocení akce 1-5'] || 3) };
+        }).filter(item => item.sales > 0);
+        
+        if (salesData.length > 0) {
+            // Průměr z podobných akcí
+            const avgSales = salesData.reduce((sum, item) => sum + item.sales, 0) / salesData.length;
+            const avgRating = salesData.reduce((sum, item) => sum + item.rating, 0) / salesData.length;
+            
+            console.log(`📊 Průměrný prodej pro "${eventData.name}": ${avgSales} kusů (rating: ${avgRating})`);
+            
+            // Upravíme podle návštěvnosti
+            let predictedSales = avgSales;
+            if (eventData.expectedVisitors > 0) {
+                const avgVisitors = salesData.reduce((sum, item) => sum + item.visitors, 0) / salesData.length;
+                if (avgVisitors > 0) {
+                    const visitorRatio = eventData.expectedVisitors / avgVisitors;
+                    predictedSales = avgSales * visitorRatio;
+                }
+            }
+            
+            // Upravíme podle délky akce
+            predictedSales *= eventData.duration;
+            
+            // Upravíme podle hodnocení (rating)
+            predictedSales *= (avgRating / 3); // 3 = průměr
+            
+            return Math.max(predictedSales / 120, 0.5); // Relativní faktor
+        }
     }
     
-    // Průměr z podobných akcí
-    const avgConversion = similarEvents.reduce((sum, row) => {
-        const sales = parseFloat(row['Skutečný prodej'] || row['N'] || 0);
-        const visitors = parseFloat(row['Návštěvnost'] || 0);
-        const rating = parseFloat(row['Hodnocení'] || row['X'] || 3);
-        
-        let conversion = visitors > 0 ? sales / visitors : 0;
-        conversion *= (rating / 3); // Úprava podle hodnocení (3 = průměr)
-        
-        return sum + conversion;
-    }, 0) / similarEvents.length;
+    // Pokud nenajdeme přesnou shodu, hledáme podle kategorie
+    const categoryMatches = historicalData.filter(row => {
+        const rowCategory = (row['kategorie'] || '').toLowerCase().trim();
+        const eventCategory = eventData.category.toLowerCase().trim();
+        return rowCategory === eventCategory;
+    });
     
-    const factor = Math.max(avgConversion / 0.12, 0.3);
-    console.log(`📈 Historical faktor: ${factor.toFixed(2)} (ze ${similarEvents.length} podobných akcí)`);
+    if (categoryMatches.length > 0) {
+        console.log(`📁 Nalezeno ${categoryMatches.length} akcí stejné kategorie`);
+        
+        const avgSales = categoryMatches.reduce((sum, row) => {
+            return sum + parseFloat(row['realně prodáno'] || 0);
+        }, 0) / categoryMatches.length;
+        
+        if (avgSales > 0) {
+            return Math.max(avgSales / 120, 0.3); // Relativní faktor podle kategorie
+        }
+    }
     
-    return Math.min(factor, 3.0); // Maximálně 3x
+    // Fallback - celkový průměr
+    const totalAvg = historicalData.reduce((sum, row) => {
+        return sum + parseFloat(row['realně prodáno'] || 0);
+    }, 0) / historicalData.length;
+    
+    return Math.max(totalAvg / 120, 0.2);
 }
 
 async function calculateWeatherFactor(eventData) {

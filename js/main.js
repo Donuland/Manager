@@ -478,7 +478,6 @@ async function updateWeather() {
                 windSpeed: closestForecast.wind?.speed || 0
             };
         } else {
-        } else {
             // Pro vzdálenější data používáme aktuální počasí jako odhad
             const weatherUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${apiKey}&units=metric&lang=cs`)}`;
             const response = await fetch(weatherUrl);

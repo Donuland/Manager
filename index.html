@@ -498,11 +498,26 @@
                             </div>
                             
                             <div class="form-group">
+                                <label for="eventCategory">Kategorie akce</label>
+                                <select id="eventCategory" onchange="updatePrediction()">
+                                    <option value="">Vyberte kategorii</option>
+                                    <option value="food festival">Food festival</option>
+                                    <option value="veletrh">Veletrh</option>
+                                    <option value="koncert">Koncert</option>
+                                    <option value="rodinný festival">Rodinný festival</option>
+                                    <option value="kulturní akce (rodinná)">Kulturní akce (rodinná)</option>
+                                    <option value="Sportovní akce (dospělí)">Sportovní akce (dospělí)</option>
+                                    <option value="ostatní">Ostatní</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-group">
                                 <label for="eventCity">Město akce</label>
-                                <input type="text" id="eventCity" placeholder="Praha, Brno, Ostrava..." 
+                                <input type="text" id="eventCity" placeholder="Zadejte jakékoliv město..." 
                                        oninput="showCitySuggestions(this.value)" onchange="updateDistance(); updateWeather(); updatePrediction();"
                                        list="citiesList">
                                 <datalist id="citiesList">
+                                    <!-- České města -->
                                     <option value="Praha">
                                     <option value="Brno">
                                     <option value="Ostrava">
@@ -536,6 +551,48 @@
                                     <option value="Příbram">
                                     <option value="Cheb">
                                     <option value="Trutnov">
+                                    <option value="Znojmo">
+                                    <option value="Vsetín">
+                                    <option value="Kroměříž">
+                                    <option value="Pelhřimov">
+                                    <option value="Valtice">
+                                    <option value="Jaroměř">
+                                    <option value="Nymburk">
+                                    <option value="Mariánské Lázně">
+                                    <option value="Milovice">
+                                    <option value="Poděbrady">
+                                    <option value="Holešov">
+                                    <option value="Vodňany">
+                                    <option value="Planá">
+                                    <option value="Žďár nad Sázavou">
+                                    <option value="Kutná Hora">
+                                    <option value="Mnichovo Hradiště">
+                                    <option value="Počátky">
+                                    <option value="Čáslav">
+                                    <option value="Újezd nad Lesy">
+                                    <option value="Jindřichův Hradec">
+                                    <option value="Rokycany">
+                                    <option value="Ostrov">
+                                    <option value="Třeboň">
+                                    <!-- Evropská města -->
+                                    <option value="Vídeň, Rakousko">
+                                    <option value="Bratislava, Slovensko">
+                                    <option value="Budapešť, Maďarsko">
+                                    <option value="Varšava, Polsko">
+                                    <option value="Krakov, Polsko">
+                                    <option value="Berlín, Německo">
+                                    <option value="Mnichov, Německo">
+                                    <option value="Drážďany, Německo">
+                                    <option value="Lipsko, Německo">
+                                    <option value="Frankfurt, Německo">
+                                    <option value="Štýrský Hradec, Rakousko">
+                                    <option value="Salcburk, Rakousko">
+                                    <option value="Linz, Rakousko">
+                                    <option value="Košice, Slovensko">
+                                    <option value="Žilina, Slovensko">
+                                    <option value="Katowice, Polsko">
+                                    <option value="Wrocław, Polsko">
+                                    <option value="Gdaňsk, Polsko">
                                 </datalist>
                             </div>
                             
@@ -626,7 +683,7 @@
 
                     <!-- Weather Forecast -->
                     <div class="card">
-                        <h3>🌤️ Předpověď počasí</h3>
+                        <h3>🌤️ Předpověď počasí (celá akce)</h3>
                         <div id="weatherDisplay">
                             <p>📍 Vyberte město a datum pro načtení předpovědi počasí</p>
                         </div>

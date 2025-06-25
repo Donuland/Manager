@@ -482,12 +482,61 @@
                         <div class="form-grid">
                             <div class="form-group">
                                 <label for="eventName">Název akce</label>
-                                <input type="text" id="eventName" placeholder="Zadejte název akce" onchange="updatePrediction()">
+                                <input type="text" id="eventName" placeholder="Zadejte název akce" 
+                                       oninput="showEventSuggestions(this.value)" onchange="updatePrediction()"
+                                       list="eventNamesList">
+                                <datalist id="eventNamesList">
+                                    <option value="Čokoládový festival">
+                                    <option value="Food festival">
+                                    <option value="Rodinný festival">
+                                    <option value="Farmářské trhy">
+                                    <option value="Městské slavnosti">
+                                    <option value="Vánoční trhy">
+                                    <option value="Letní festival">
+                                    <option value="Gastro festival">
+                                </datalist>
                             </div>
                             
                             <div class="form-group">
                                 <label for="eventCity">Město akce</label>
-                                <input type="text" id="eventCity" placeholder="Praha, Brno, Ostrava..." onchange="updateDistance(); updatePrediction();">
+                                <input type="text" id="eventCity" placeholder="Praha, Brno, Ostrava..." 
+                                       oninput="showCitySuggestions(this.value)" onchange="updateDistance(); updateWeather(); updatePrediction();"
+                                       list="citiesList">
+                                <datalist id="citiesList">
+                                    <option value="Praha">
+                                    <option value="Brno">
+                                    <option value="Ostrava">
+                                    <option value="Plzeň">
+                                    <option value="Liberec">
+                                    <option value="Olomouc">
+                                    <option value="České Budějovice">
+                                    <option value="Hradec Králové">
+                                    <option value="Ústí nad Labem">
+                                    <option value="Pardubice">
+                                    <option value="Zlín">
+                                    <option value="Kladno">
+                                    <option value="Most">
+                                    <option value="Karviná">
+                                    <option value="Opava">
+                                    <option value="Frýdek-Místek">
+                                    <option value="Děčín">
+                                    <option value="Teplice">
+                                    <option value="Chomutov">
+                                    <option value="Jihlava">
+                                    <option value="Mladá Boleslav">
+                                    <option value="Prostějov">
+                                    <option value="Přerov">
+                                    <option value="Jablonec nad Nisou">
+                                    <option value="Třebíč">
+                                    <option value="Karlovy Vary">
+                                    <option value="Česká Lípa">
+                                    <option value="Třinec">
+                                    <option value="Tábor">
+                                    <option value="Kolín">
+                                    <option value="Příbram">
+                                    <option value="Cheb">
+                                    <option value="Trutnov">
+                                </datalist>
                             </div>
                             
                             <div class="form-group">
@@ -498,6 +547,17 @@
                             <div class="form-group">
                                 <label for="expectedVisitors">Očekávaná návštěvnost</label>
                                 <input type="number" id="expectedVisitors" placeholder="Počet návštěvníků" onchange="updatePrediction()">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="eventDuration">Délka akce (dny)</label>
+                                <select id="eventDuration" onchange="updatePrediction()">
+                                    <option value="1">1 den</option>
+                                    <option value="2">2 dny</option>
+                                    <option value="3">3 dny</option>
+                                    <option value="4">4 dny</option>
+                                    <option value="5">5 dní</option>
+                                </select>
                             </div>
                             
                             <div class="form-group">

@@ -19,7 +19,7 @@ async function initializeApp() {
     
     try {
         // Kontrola, že všechny potřebné moduly jsou načtené
-        const requiredModules = ['settings', 'navigation', 'ui', 'dataManager', 'predictor'];
+        const requiredModules = ['settings', 'navigation', 'ui', 'dataManager', 'predictor', 'analysis', 'weatherService', 'mapsService'];
         const missingModules = requiredModules.filter(module => typeof window[module] === 'undefined');
         
         if (missingModules.length > 0) {

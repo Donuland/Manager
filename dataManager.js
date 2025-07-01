@@ -1,6 +1,6 @@
 // ========================================
 // DONULAND MANAGEMENT SYSTEM - DATA MANAGER
-// Správa načítání a ukládání dat z Google Sheets
+// Zjednodušená správa načítání dat z Google Sheets
 // ========================================
 
 const dataManager = {
@@ -25,17 +25,14 @@ const dataManager = {
 
             console.log('Načítám data ze Sheet ID:', sheetId);
 
-            // Pokusíme se načíst data pomocí CORS proxy
+            // Načtení dat přes CORS proxy
             const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=0`;
             const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(csvUrl)}`;
             
-            const response = await utils.retry(async () => {
-                const res = await fetch(proxyUrl);
-                if (!res.ok) {
-                    throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-                }
-                return res;
-            });
+            const response = await fetch(proxyUrl);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
 
             const data = await response.json();
             const csvText = data.contents;
@@ -49,46 +46,20 @@ const dataManager = {
             globalData.lastDataLoad = new Date();
 
             console.log(`✅ Načteno ${globalData.historicalData.length} záznamů`);
-            console.log('📊 Ukázka dat:', globalData.historicalData.slice(0, 2));
 
-            // Aktualizace autocomplete s reálnými daty
+            // Aktualizace autocomplete
             this.updateAutocomplete();
 
             // Aktualizace UI
-            ui.showNotification(`✅ Úspěšně načteno ${globalData.historicalData.length} záznamů z Google Sheets!`, 'success');
+            ui.showNotification(`✅ Úspěšně načteno ${globalData.historicalData.length} záznamů!`, 'success');
             ui.updateStatusIndicator('online', `${globalData.historicalData.length} záznamů`);
 
             return globalData.historicalData;
 
         } catch (error) {
             console.error('Chyba při načítání Google Sheets:', error);
-            
-            // Pokusíme se o přímé připojení jako fallback
-            try {
-                const directUrl = `https://docs.google.com/spreadsheets/d/${utils.extractSheetId(document.getElementById('googleSheetsUrl').value)}/export?format=csv&gid=0`;
-                console.log('🔄 Zkouším přímé připojení...');
-                
-                const directResponse = await fetch(directUrl, { 
-                    mode: 'cors',
-                    headers: {
-                        'Accept': 'text/csv'
-                    }
-                });
-                
-                if (directResponse.ok) {
-                    const csvText = await directResponse.text();
-                    globalData.historicalData = utils.parseCSV(csvText);
-                    ui.showNotification('✅ Data načtena přímým připojením', 'success');
-                    ui.updateStatusIndicator('online', `${globalData.historicalData.length} záznamů`);
-                    return globalData.historicalData;
-                }
-            } catch (directError) {
-                console.warn('Přímé připojení také selhalo:', directError);
-            }
-
-            ui.showNotification(`❌ Chyba při načítání dat: ${error.message}. Zkontrolujte že Google Sheets je veřejný.`, 'error');
+            ui.showNotification(`❌ Chyba při načítání dat: ${error.message}`, 'error');
             ui.updateStatusIndicator('error', 'Chyba načítání');
-            
             throw error;
 
         } finally {
@@ -96,14 +67,14 @@ const dataManager = {
         }
     },
 
-    // Aktualizace autocomplete seznamů z načtených dat
+    // Aktualizace autocomplete seznamů
     updateAutocomplete() {
         if (globalData.historicalData.length === 0) return;
 
         try {
             // Nalezení správných sloupců
-            const nameColumn = utils.findColumn(globalData.historicalData, ['Název akce', 'D', 'Event Name', 'Name']);
-            const cityColumn = utils.findColumn(globalData.historicalData, ['Lokalita', 'C', 'Location', 'City']);
+            const nameColumn = utils.findColumn(globalData.historicalData, ['Název akce', 'D']);
+            const cityColumn = utils.findColumn(globalData.historicalData, ['Lokalita', 'C']);
 
             // Extrakce unikátních názvů akcí
             const eventNames = [...new Set(globalData.historicalData
@@ -125,20 +96,19 @@ const dataManager = {
                 eventDatalist.innerHTML = eventNames
                     .map(name => `<option value="${utils.escapeHtml(name)}">`)
                     .join('');
-                console.log(`✅ Autocomplete aktualizován - ${eventNames.length} názvů akcí`);
+                console.log(`✅ Autocomplete: ${eventNames.length} názvů akcí`);
             }
 
-            // Aktualizace datalist pro města (přidáme k existujícím)
+            // Aktualizace datalist pro města
             const citiesDatalist = document.getElementById('citiesList');
             if (citiesDatalist && cities.length > 0) {
-                // Zachováme existující města a přidáme nová z dat
                 const existingCities = Array.from(citiesDatalist.options).map(opt => opt.value);
                 const allCities = [...new Set([...existingCities, ...cities])].sort();
                 
                 citiesDatalist.innerHTML = allCities
                     .map(city => `<option value="${utils.escapeHtml(city)}">`)
                     .join('');
-                console.log(`✅ Autocomplete aktualizován - ${allCities.length} měst celkem`);
+                console.log(`✅ Autocomplete: ${allCities.length} měst celkem`);
             }
 
         } catch (error) {
@@ -146,7 +116,7 @@ const dataManager = {
         }
     },
 
-    // Získání historických dat pro konkrétní akci/město
+    // Získání historických dat pro predikci
     getHistoricalData(eventName = '', city = '', category = '') {
         if (globalData.historicalData.length === 0) {
             return { matches: [], summary: null };
@@ -157,8 +127,6 @@ const dataManager = {
             const cityColumn = utils.findColumn(globalData.historicalData, ['Lokalita', 'C']);
             const categoryColumn = utils.findColumn(globalData.historicalData, ['kategorie', 'E']);
             const salesColumn = utils.findColumn(globalData.historicalData, ['realně prodáno', 'N']);
-            const ratingColumn = utils.findColumn(globalData.historicalData, ['hodnocení akce 1-5', 'X']);
-            const visitorsColumn = utils.findColumn(globalData.historicalData, ['návstěvnost', 'Q']);
 
             // Filtrování podle kritérií
             let matches = globalData.historicalData.filter(row => {
@@ -167,7 +135,7 @@ const dataManager = {
                 const rowCategory = (row[categoryColumn] || '').toLowerCase().trim();
                 const sales = parseFloat(row[salesColumn] || 0);
 
-                // Musí mít nějaký prodej aby byl relevantní
+                // Musí mít nějaký prodej
                 if (sales <= 0) return false;
 
                 let nameMatch = true;
@@ -175,33 +143,22 @@ const dataManager = {
                 let categoryMatch = true;
 
                 if (eventName) {
-                    const eventLower = eventName.toLowerCase().trim();
-                    nameMatch = utils.fuzzySearch(eventLower, rowName, 0.7);
+                    nameMatch = utils.fuzzySearch(eventName.toLowerCase(), rowName, 0.7);
                 }
 
                 if (city) {
-                    const cityLower = city.toLowerCase().trim();
-                    cityMatch = utils.fuzzySearch(cityLower, rowCity, 0.8);
+                    cityMatch = utils.fuzzySearch(city.toLowerCase(), rowCity, 0.8);
                 }
 
                 if (category) {
-                    const categoryLower = category.toLowerCase().trim();
-                    categoryMatch = utils.fuzzySearch(categoryLower, rowCategory, 0.8);
+                    categoryMatch = utils.fuzzySearch(category.toLowerCase(), rowCategory, 0.8);
                 }
 
                 return nameMatch && cityMatch && categoryMatch;
             });
 
-            // Seřazení podle relevance (přesné shody první)
+            // Seřazení podle prodejů
             matches.sort((a, b) => {
-                const aName = (a[nameColumn] || '').toLowerCase();
-                const bName = (b[nameColumn] || '').toLowerCase();
-                const searchName = eventName.toLowerCase();
-
-                if (aName === searchName && bName !== searchName) return -1;
-                if (bName === searchName && aName !== searchName) return 1;
-                
-                // Seřazení podle prodejů
                 const aSales = parseFloat(a[salesColumn] || 0);
                 const bSales = parseFloat(b[salesColumn] || 0);
                 return bSales - aSales;
@@ -212,19 +169,15 @@ const dataManager = {
             if (matches.length > 0) {
                 const totalSales = matches.reduce((sum, row) => sum + parseFloat(row[salesColumn] || 0), 0);
                 const avgSales = totalSales / matches.length;
-                const avgRating = matches.reduce((sum, row) => sum + parseFloat(row[ratingColumn] || 0), 0) / matches.length;
-                const avgVisitors = matches.reduce((sum, row) => sum + parseFloat(row[visitorsColumn] || 0), 0) / matches.length;
 
                 summary = {
                     count: matches.length,
                     avgSales: Math.round(avgSales),
-                    totalSales: Math.round(totalSales),
-                    avgRating: Math.round(avgRating * 10) / 10,
-                    avgVisitors: Math.round(avgVisitors)
+                    totalSales: Math.round(totalSales)
                 };
             }
 
-            console.log(`📊 Nalezeno ${matches.length} historických záznamů pro "${eventName}" v "${city}"`);
+            console.log(`📊 Nalezeno ${matches.length} historických záznamů`);
             return { matches, summary };
 
         } catch (error) {
@@ -233,19 +186,16 @@ const dataManager = {
         }
     },
 
-    // Uložení predikce do Google Sheets
+    // Uložení predikce (simulace)
     async savePrediction(predictionData) {
         try {
             console.log('💾 Ukládám predikci:', predictionData);
-
-            // Pro demonstraci zatím jen simulujeme uložení
-            // V reálné implementaci by se použilo Google Sheets API
             ui.showNotification('💾 Ukládám predikci...', 'info');
 
             // Simulace API volání
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            await new Promise(resolve => setTimeout(resolve, 1500));
 
-            // Přidání do lokálních dat pro okamžité zobrazení
+            // Přidání do lokálních dat
             const newRecord = {
                 'Datum': predictionData.date,
                 'Lokalita': predictionData.city,
@@ -253,16 +203,12 @@ const dataManager = {
                 'kategorie': predictionData.category,
                 'realně prodáno': predictionData.predictedSales,
                 'návstěvnost': predictionData.expectedVisitors,
-                'konkurence': predictionData.competition,
-                'hodnocení akce 1-5': '', // Bude vyplněno po akci
                 'poznámka': 'PREDIKCE - ' + new Date().toLocaleString('cs-CZ')
             };
 
             globalData.historicalData.unshift(newRecord);
 
             ui.showNotification('✅ Predikce byla úspěšně uložena!', 'success');
-            console.log('✅ Predikce uložena úspěšně');
-
             return true;
 
         } catch (error) {
@@ -272,21 +218,19 @@ const dataManager = {
         }
     },
 
-    // Získání statistik dat
+    // Získání základních statistik
     getDataStats() {
         if (globalData.historicalData.length === 0) {
             return {
                 totalEvents: 0,
                 eventsWithSales: 0,
                 totalSales: 0,
-                avgSalesPerEvent: 0,
-                dateRange: null
+                avgSalesPerEvent: 0
             };
         }
 
         try {
             const salesColumn = utils.findColumn(globalData.historicalData, ['realně prodáno', 'N']);
-            const dateColumn = utils.findColumn(globalData.historicalData, ['Datum', 'B']);
 
             const eventsWithSales = globalData.historicalData.filter(row => {
                 const sales = parseFloat(row[salesColumn] || 0);
@@ -297,21 +241,11 @@ const dataManager = {
                 return sum + parseFloat(row[salesColumn] || 0);
             }, 0);
 
-            const dates = globalData.historicalData
-                .map(row => row[dateColumn])
-                .filter(date => date && date.trim())
-                .sort();
-
             return {
                 totalEvents: globalData.historicalData.length,
                 eventsWithSales: eventsWithSales.length,
                 totalSales: Math.round(totalSales),
-                avgSalesPerEvent: eventsWithSales.length > 0 ? Math.round(totalSales / eventsWithSales.length) : 0,
-                dateRange: dates.length > 0 ? {
-                    from: dates[0],
-                    to: dates[dates.length - 1]
-                } : null,
-                lastUpdate: globalData.lastDataLoad
+                avgSalesPerEvent: eventsWithSales.length > 0 ? Math.round(totalSales / eventsWithSales.length) : 0
             };
 
         } catch (error) {
@@ -320,13 +254,12 @@ const dataManager = {
                 totalEvents: globalData.historicalData.length,
                 eventsWithSales: 0,
                 totalSales: 0,
-                avgSalesPerEvent: 0,
-                dateRange: null
+                avgSalesPerEvent: 0
             };
         }
     },
 
-    // Vymazání cache a refresh dat
+    // Refresh dat
     async refreshData() {
         utils.clearCache();
         globalData.historicalData = [];

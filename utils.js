@@ -346,6 +346,3 @@ const utils = {
         }
     }
 };
-
-// Export pro případné použití v jiných souborech
-window.utils = utils;

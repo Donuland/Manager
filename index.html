@@ -260,6 +260,14 @@
                         <div id="predictionResults">
                             <p>📋 Vyplňte všechny povinné údaje (označené *) pro zobrazení predikce</p>
                         </div>
+                        <div style="margin-top: 20px; text-align: center;">
+                            <button class="btn btn-success" onclick="predictor.savePrediction()" style="margin-right: 10px;">
+                                💾 Uložit predikci
+                            </button>
+                            <button class="btn btn-secondary" onclick="predictor.exportPrediction()">
+                                📄 Export do souboru
+                            </button>
+                        </div>
                     </div>
                 </section>
 
@@ -413,18 +421,17 @@
     <!-- Notification Container -->
     <div id="notificationContainer"></div>
 
- <!-- Scripts -->
-<script src="config.js"></script>
-<script src="utils.js"></script>
-<script src="dataManager.js"></script>
-<script src="ui.js"></script>
-<script src="weatherService.js"></script>
-<!-- <script src="mapsService.js"></script> -->
-<!-- <script src="predictor.js"></script> -->
-<!-- <script src="analysis.js"></script> -->
-<script src="navigation.js"></script>
-<!-- <script src="settings.js"></script> -->
-<script src="app.js"></script>
-    
+    <!-- Scripts v správném pořadí -->
+    <script src="config.js"></script>
+    <script src="utils.js"></script>
+    <script src="ui.js"></script>
+    <script src="dataManager.js"></script>
+    <script src="weatherService.js"></script>
+    <script src="mapService.js"></script>
+    <script src="predictor.js"></script>
+    <script src="analysis.js"></script>
+    <script src="navigation.js"></script>
+    <script src="settings.js"></script>
+    <script src="app.js"></script>
 </body>
 </html>

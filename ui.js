@@ -179,6 +179,14 @@ const ui = {
             <div class="costs-breakdown">
                 <h4>📋 Rozpis nákladů</h4>
                 <div class="cost-item">
+                    <span>🍩 Výroba donutů (${prediction.predictedSales} × ${(businessResults.costs.production / prediction.predictedSales).toFixed(0)} Kč)</span>
+                    <span>${this.formatCurrency(businessResults.costs.production)}</span>
+                </div>
+                <div class="cost-item">
+                    <span>🚗 Doprava (${eventData.distance} km tam a zpět)</span>
+                    <span>${this.formatCurrency(businessResults.costs.transport)}</span>
+                </div>
+                <div class="cost-item">
                     <span>👥 Mzdy a pracovní síla</span>
                     <span>${this.formatCurrency(businessResults.costs.labor)}</span>
                 </div>
@@ -227,7 +235,7 @@ const ui = {
         }
         
         if (prediction.confidence < 60) {
-            recommendations.push('⚠️ Nízká spolehlivost predikce - budьte opatrní s plánováním');
+            recommendations.push('⚠️ Nízká spolehlivost predikce - buďte opatrní s plánováním');
         }
         
         if (eventData.distance > 200) {
@@ -423,9 +431,9 @@ const ui = {
         
         if (type === 'city') {
             valueDisplay = `${Math.round(item.avgSales)} 🍩/akci`;
-            subValueDisplay = `Celkem: ${item.totalSales} 🍩`;
+            subValueDisplay = `Celkem: ${this.formatNumber(item.totalSales)} 🍩`;
         } else {
-            valueDisplay = `${item.sales} 🍩`;
+            valueDisplay = `${this.formatNumber(item.sales)} 🍩`;
             subValueDisplay = this.formatCurrency(item.sales * 50);
         }
         
@@ -638,12 +646,4 @@ const ui = {
         div.textContent = text;
         return div.innerHTML;
     }
-};🍩 Výroba donutů (${prediction.predictedSales} × ${eventData.donutPrice - businessResults.costs.production / prediction.predictedSales} Kč)</span>
-                    <span>${this.formatCurrency(businessResults.costs.production)}</span>
-                </div>
-                <div class="cost-item">
-                    <span>🚗 Doprava (${eventData.distance} km tam a zpět)</span>
-                    <span>${this.formatCurrency(businessResults.costs.transport)}</span>
-                </div>
-                <div class="cost-item">
-                    <span>
+};

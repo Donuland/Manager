@@ -132,6 +132,210 @@ const ui = {
         `;
     },
 
+    // Zobrazení výsledků predikce
+    displayPredictionResults(prediction, businessResults, eventData) {
+        const resultsDiv = document.getElementById('predictionResults');
+        if (!resultsDiv) return;
+
+        const confidenceColor = prediction.confidence >= 80 ? '#28a745' : 
+                               prediction.confidence >= 60 ? '#ffc107' : '#dc3545';
+
+        const profitColor = businessResults.profit > 0 ? '#28a745' : '#dc3545';
+        
+        resultsDiv.innerHTML = `
+            <div class="results-grid">
+                <div class="result-item">
+                    <div class="result-value" style="color: #667eea;">${this.formatNumber(prediction.predictedSales)}</div>
+                    <div class="result-label">🍩 Predikovaný prodej donutů</div>
+                </div>
+                
+                <div class="result-item">
+                    <div class="result-value" style="color: ${confidenceColor};">${prediction.confidence}%</div>
+                    <div class="result-label">📊 Spolehlivost predikce</div>
+                </div>
+                
+                <div class="result-item">
+                    <div class="result-value" style="color: #28a745;">${this.formatCurrency(businessResults.revenue)}</div>
+                    <div class="result-label">💰 Očekávaný obrat</div>
+                </div>
+                
+                <div class="result-item">
+                    <div class="result-value" style="color: ${profitColor};">${this.formatCurrency(businessResults.profit)}</div>
+                    <div class="result-label">📈 Čistý zisk</div>
+                </div>
+                
+                <div class="result-item">
+                    <div class="result-value">${Math.round(businessResults.profitMargin)}%</div>
+                    <div class="result-label">📊 Marže</div>
+                </div>
+                
+                <div class="result-item">
+                    <div class="result-value">${this.formatCurrency(businessResults.costs.total)}</div>
+                    <div class="result-label">💸 Celkové náklady</div>
+                </div>
+            </div>
+
+            <!-- Podrobný rozpis nákladů -->
+            <div class="costs-breakdown">
+                <h4>📋 Rozpis nákladů</h4>
+                <div class="cost-item">
+                    <span>👥 Mzdy a pracovní síla</span>
+                    <span>${this.formatCurrency(businessResults.costs.labor)}</span>
+                </div>
+                ${businessResults.costs.revenueShare > 0 ? `
+                <div class="cost-item">
+                    <span>💼 Podíl z obratu (5%)</span>
+                    <span>${this.formatCurrency(businessResults.costs.revenueShare)}</span>
+                </div>
+                ` : ''}
+                <div class="cost-item">
+                    <span>🏢 Nájem za prostor</span>
+                    <span>${this.formatCurrency(businessResults.costs.rent)}</span>
+                </div>
+                <div class="cost-item">
+                    <span><strong>💸 CELKEM NÁKLADY</strong></span>
+                    <span><strong>${this.formatCurrency(businessResults.costs.total)}</strong></span>
+                </div>
+            </div>
+
+            <!-- Predikční faktory -->
+            <div class="recommendations">
+                <h4>🧠 Analýza faktorů</h4>
+                <ul>
+                    <li><strong>Historická data:</strong> ${(prediction.factors.historical * 100 - 100).toFixed(0)}% oproti průměru</li>
+                    <li><strong>Počasí:</strong> ${(prediction.factors.weather * 100 - 100).toFixed(0)}% vliv na návštěvnost</li>
+                    <li><strong>Konkurence:</strong> ${(prediction.factors.competition * 100 - 100).toFixed(0)}% vliv</li>
+                    <li><strong>Velikost města:</strong> ${(prediction.factors.city * 100 - 100).toFixed(0)}% faktor</li>
+                    <li><strong>Typ akce:</strong> ${(prediction.factors.eventType * 100 - 100).toFixed(0)}% specializace</li>
+                </ul>
+            </div>
+
+            ${this.generateRecommendations(prediction, businessResults, eventData)}
+        `;
+    },
+
+    // Generování doporučení
+    generateRecommendations(prediction, businessResults, eventData) {
+        const recommendations = [];
+        
+        if (businessResults.profit < 0) {
+            recommendations.push('❌ Akce bude ztrátová - zvažte změnu ceny nebo nákladů');
+        } else if (businessResults.profitMargin < 10) {
+            recommendations.push('⚠️ Nízká marže - zvažte optimalizaci nákladů');
+        } else if (businessResults.profitMargin > 30) {
+            recommendations.push('✅ Výborná marže - akce je velmi výnosná');
+        }
+        
+        if (prediction.confidence < 60) {
+            recommendations.push('⚠️ Nízká spolehlivost predikce - budьte opatrní s plánováním');
+        }
+        
+        if (eventData.distance > 200) {
+            recommendations.push('🚗 Vzdálená akce - zvažte přenocování pro snížení nákladů');
+        }
+        
+        if (prediction.predictedSales < 100) {
+            recommendations.push('📉 Nízký predikovaný prodej - zvažte menší zásobu');
+        }
+        
+        if (prediction.factors.weather < 0.8) {
+            recommendations.push('🌧️ Nepříznivé počasí - připravte se na nižší návštěvnost');
+        }
+
+        if (recommendations.length === 0) {
+            recommendations.push('✅ Všechny parametry vypadají dobře pro úspěšnou akci');
+        }
+        
+        return `
+            <div class="recommendations">
+                <h4>💡 Doporučení</h4>
+                <ul>
+                    ${recommendations.map(rec => `<li>${rec}</li>`).join('')}
+                </ul>
+            </div>
+        `;
+    },
+
+    // Zobrazení historických dat
+    displayHistoricalInsights(historicalData) {
+        const insightsDiv = document.getElementById('historicalInsights');
+        const dataDiv = document.getElementById('historicalData');
+        
+        if (!insightsDiv || !dataDiv) return;
+        
+        if (!historicalData.matches || historicalData.matches.length === 0) {
+            insightsDiv.style.display = 'none';
+            return;
+        }
+        
+        insightsDiv.style.display = 'block';
+        
+        const summary = historicalData.summary;
+        const matches = historicalData.matches.slice(0, 5); // Top 5 výsledků
+        
+        let summaryHtml = '';
+        if (summary) {
+            summaryHtml = `
+                <div class="historical-summary">
+                    <h4>📊 Shrnutí historických dat</h4>
+                    <div class="results-grid" style="margin-top: 15px;">
+                        <div class="result-item">
+                            <div class="result-value">${summary.count}</div>
+                            <div class="result-label">Podobných akcí</div>
+                        </div>
+                        <div class="result-item">
+                            <div class="result-value">${summary.avgSales}</div>
+                            <div class="result-label">Průměrný prodej</div>
+                        </div>
+                        <div class="result-item">
+                            <div class="result-value">${this.formatCurrency(summary.avgSales * 50)}</div>
+                            <div class="result-label">Průměrný obrat</div>
+                        </div>
+                        ${summary.avgRating > 0 ? `
+                        <div class="result-item">
+                            <div class="result-value">${this.createStarRating(summary.avgRating)}</div>
+                            <div class="result-label">Průměrné hodnocení</div>
+                        </div>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+        }
+        
+        const matchesHtml = matches.map(match => {
+            const salesColumn = utils.findColumn([match], ['realně prodáno', 'N']);
+            const nameColumn = utils.findColumn([match], ['Název akce', 'D']);
+            const cityColumn = utils.findColumn([match], ['Lokalita', 'C']);
+            const dateColumn = utils.findColumn([match], ['Datum', 'B']);
+            const ratingColumn = utils.findColumn([match], ['hodnocení akce 1-5', 'X']);
+            
+            const sales = match[salesColumn] || 0;
+            const name = match[nameColumn] || 'Neznámá akce';
+            const city = match[cityColumn] || 'Neznámé město';
+            const date = match[dateColumn] || '';
+            const rating = parseFloat(match[ratingColumn] || 0);
+            
+            return `
+                <div class="historical-item">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <strong>${this.escapeHtml(name)}</strong><br>
+                            <small>📍 ${this.escapeHtml(city)} | 📅 ${date}</small>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 1.2em; font-weight: bold; color: #28a745;">
+                                ${sales} 🍩
+                            </div>
+                            ${rating > 0 ? `<div>${this.createStarRating(rating)}</div>` : ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+        
+        dataDiv.innerHTML = summaryHtml + matchesHtml;
+    },
+
     // Vytvoření rating hvězdiček
     createStarRating(rating, maxStars = 5) {
         const fullStars = Math.floor(rating);
@@ -434,4 +638,12 @@ const ui = {
         div.textContent = text;
         return div.innerHTML;
     }
-};
+};🍩 Výroba donutů (${prediction.predictedSales} × ${eventData.donutPrice - businessResults.costs.production / prediction.predictedSales} Kč)</span>
+                    <span>${this.formatCurrency(businessResults.costs.production)}</span>
+                </div>
+                <div class="cost-item">
+                    <span>🚗 Doprava (${eventData.distance} km tam a zpět)</span>
+                    <span>${this.formatCurrency(businessResults.costs.transport)}</span>
+                </div>
+                <div class="cost-item">
+                    <span>

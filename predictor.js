@@ -147,8 +147,6 @@ const predictor = {
 
     // Základní konverzní poměr podle kategorie
     getBaseConversionRate(eventData) {
-    // Základní konverzní poměr podle kategorie
-    getBaseConversionRate(eventData) {
         const categoryFactors = {
             'veletrh': 0.18,                    // ČokoFest a podobné - vyšší konverze
             'food festival': 0.15,             // Food festivaly
@@ -477,8 +475,10 @@ const predictor = {
             const distance = await mapsService.calculateDistance(CONFIG.BASE_CITY, city);
             distanceInput.value = distance;
             
-            // Automaticky aktualizovat predikci
-            this.updatePrediction();
+            // Automaticky aktualizovat predikci pokud jsou všechna pole vyplněná
+            if (this.isFormReadyForPrediction()) {
+                this.updatePrediction();
+            }
             
         } catch (error) {
             debugError('Chyba při výpočtu vzdálenosti:', error);
@@ -507,8 +507,10 @@ const predictor = {
             const weather = await weatherService.getWeather(city, date);
             weatherService.displayWeather(weather);
             
-            // Automaticky aktualizovat predikci
-            this.updatePrediction();
+            // Automaticky aktualizovat predikci pokud jsou všechna pole vyplněná
+            if (this.isFormReadyForPrediction()) {
+                this.updatePrediction();
+            }
             
         } catch (error) {
             debugError('Chyba při načítání počasí:', error);
@@ -520,24 +522,17 @@ const predictor = {
         }
     },
 
-    // Aktualizace business model info
-    updateBusinessModelInfo() {
-        const model = document.getElementById('businessModel').value;
-        ui.updateBusinessModelInfo(model);
+    // Kontrola, zda je formulář připraven pro predikci
+    isFormReadyForPrediction() {
+        const requiredFields = [
+            'eventName', 'eventCategory', 'eventCity', 'eventDate',
+            'expectedVisitors', 'competition', 'businessModel', 'rentType'
+        ];
         
-        if (model) {
-            this.updatePrediction();
-        }
-    },
-
-    // Aktualizace vstupů pro nájem
-    updateRentInputs() {
-        const rentType = document.getElementById('rentType').value;
-        ui.updateRentInputs(rentType);
-        
-        if (rentType) {
-            this.updatePrediction();
-        }
+        return requiredFields.every(fieldId => {
+            const element = document.getElementById(fieldId);
+            return element && element.value && element.value.trim().length > 0;
+        });
     },
 
     // Uložení predikce
@@ -594,38 +589,6 @@ const predictor = {
             const resultsDiv = document.getElementById('predictionResults');
             if (resultsDiv) {
                 const resultItems = resultsDiv.querySelectorAll('.result-item');
-                exportText += `VÝSLEDKY PREDIKCE:\n`;
-                exportText += `==================\n`;
-                
-                resultItems.forEach(item => {
-                    const value = item.querySelector('.result-value')?.textContent || '';
-                    const label = item.querySelector('.result-label')?.textContent || '';
-                    exportText += `${label}: ${value}\n`;
-                });
-            }
-            
-            exportText += `\n\nExportováno: ${new Date().toLocaleString('cs-CZ')}\n`;
-            exportText += `Donuland Management System\n`;
-            
-            // Stažení jako textový soubor
-            const blob = new Blob([exportText], { type: 'text/plain;charset=utf-8' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `donuland-predikce-${eventData.name.replace(/[^a-z0-9]/gi, '_')}.txt`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            
-            ui.showNotification('📄 Predikce exportována do souboru', 'success');
-            
-        } catch (error) {
-            debugError('Chyba při exportu:', error);
-            ui.showNotification('❌ Chyba při exportu predikce', 'error');
-        }
-    }
-};
                 exportText += `VÝSLEDKY PREDIKCE:\n`;
                 exportText += `==================\n`;
                 

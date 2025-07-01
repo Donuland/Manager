@@ -7,7 +7,7 @@ const dataManager = {
     // Načtení dat z Google Sheets
     async loadData() {
         if (globalData.isLoading) {
-            debug('Načítání již probíhá...');
+            console.log('Načítání již probíhá...');
             return;
         }
 
@@ -23,7 +23,7 @@ const dataManager = {
                 throw new Error('Neplatné Google Sheets URL');
             }
 
-            debug('Načítám data ze Sheet ID:', sheetId);
+            console.log('Načítám data ze Sheet ID:', sheetId);
 
             // Pokusíme se načíst data pomocí CORS proxy
             const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=0`;
@@ -48,8 +48,8 @@ const dataManager = {
             globalData.historicalData = utils.parseCSV(csvText);
             globalData.lastDataLoad = new Date();
 
-            debug(`✅ Načteno ${globalData.historicalData.length} záznamů`);
-            debug('📊 Ukázka dat:', globalData.historicalData.slice(0, 2));
+            console.log(`✅ Načteno ${globalData.historicalData.length} záznamů`);
+            console.log('📊 Ukázka dat:', globalData.historicalData.slice(0, 2));
 
             // Aktualizace autocomplete s reálnými daty
             this.updateAutocomplete();
@@ -58,23 +58,15 @@ const dataManager = {
             ui.showNotification(`✅ Úspěšně načteno ${globalData.historicalData.length} záznamů z Google Sheets!`, 'success');
             ui.updateStatusIndicator('online', `${globalData.historicalData.length} záznamů`);
 
-            // Refresh analýzy pokud je aktivní
-            if (document.getElementById('analysis').classList.contains('active')) {
-                analysis.loadAnalysisData();
-            }
-            if (document.getElementById('calendar').classList.contains('active')) {
-                analysis.loadCalendarData();
-            }
-
             return globalData.historicalData;
 
         } catch (error) {
-            debugError('Chyba při načítání Google Sheets:', error);
+            console.error('Chyba při načítání Google Sheets:', error);
             
             // Pokusíme se o přímé připojení jako fallback
             try {
                 const directUrl = `https://docs.google.com/spreadsheets/d/${utils.extractSheetId(document.getElementById('googleSheetsUrl').value)}/export?format=csv&gid=0`;
-                debug('🔄 Zkouším přímé připojení...');
+                console.log('🔄 Zkouším přímé připojení...');
                 
                 const directResponse = await fetch(directUrl, { 
                     mode: 'cors',
@@ -91,7 +83,7 @@ const dataManager = {
                     return globalData.historicalData;
                 }
             } catch (directError) {
-                debugWarn('Přímé připojení také selhalo:', directError);
+                console.warn('Přímé připojení také selhalo:', directError);
             }
 
             ui.showNotification(`❌ Chyba při načítání dat: ${error.message}. Zkontrolujte že Google Sheets je veřejný.`, 'error');
@@ -112,7 +104,6 @@ const dataManager = {
             // Nalezení správných sloupců
             const nameColumn = utils.findColumn(globalData.historicalData, ['Název akce', 'D', 'Event Name', 'Name']);
             const cityColumn = utils.findColumn(globalData.historicalData, ['Lokalita', 'C', 'Location', 'City']);
-            const categoryColumn = utils.findColumn(globalData.historicalData, ['kategorie', 'E', 'Category']);
 
             // Extrakce unikátních názvů akcí
             const eventNames = [...new Set(globalData.historicalData
@@ -134,7 +125,7 @@ const dataManager = {
                 eventDatalist.innerHTML = eventNames
                     .map(name => `<option value="${utils.escapeHtml(name)}">`)
                     .join('');
-                debug(`✅ Autocomplete aktualizován - ${eventNames.length} názvů akcí`);
+                console.log(`✅ Autocomplete aktualizován - ${eventNames.length} názvů akcí`);
             }
 
             // Aktualizace datalist pro města (přidáme k existujícím)
@@ -147,11 +138,11 @@ const dataManager = {
                 citiesDatalist.innerHTML = allCities
                     .map(city => `<option value="${utils.escapeHtml(city)}">`)
                     .join('');
-                debug(`✅ Autocomplete aktualizován - ${allCities.length} měst celkem`);
+                console.log(`✅ Autocomplete aktualizován - ${allCities.length} měst celkem`);
             }
 
         } catch (error) {
-            debugWarn('Chyba při aktualizaci autocomplete:', error);
+            console.warn('Chyba při aktualizaci autocomplete:', error);
         }
     },
 
@@ -233,11 +224,11 @@ const dataManager = {
                 };
             }
 
-            debug(`📊 Nalezeno ${matches.length} historických záznamů pro "${eventName}" v "${city}"`);
+            console.log(`📊 Nalezeno ${matches.length} historických záznamů pro "${eventName}" v "${city}"`);
             return { matches, summary };
 
         } catch (error) {
-            debugError('Chyba při vyhledávání historických dat:', error);
+            console.error('Chyba při vyhledávání historických dat:', error);
             return { matches: [], summary: null };
         }
     },
@@ -245,7 +236,7 @@ const dataManager = {
     // Uložení predikce do Google Sheets
     async savePrediction(predictionData) {
         try {
-            debug('💾 Ukládám predikci:', predictionData);
+            console.log('💾 Ukládám predikci:', predictionData);
 
             // Pro demonstraci zatím jen simulujeme uložení
             // V reálné implementaci by se použilo Google Sheets API
@@ -270,12 +261,12 @@ const dataManager = {
             globalData.historicalData.unshift(newRecord);
 
             ui.showNotification('✅ Predikce byla úspěšně uložena!', 'success');
-            debug('✅ Predikce uložena úspěšně');
+            console.log('✅ Predikce uložena úspěšně');
 
             return true;
 
         } catch (error) {
-            debugError('Chyba při ukládání predikce:', error);
+            console.error('Chyba při ukládání predikce:', error);
             ui.showNotification('❌ Chyba při ukládání predikce: ' + error.message, 'error');
             return false;
         }
@@ -324,7 +315,7 @@ const dataManager = {
             };
 
         } catch (error) {
-            debugError('Chyba při výpočtu statistik:', error);
+            console.error('Chyba při výpočtu statistik:', error);
             return {
                 totalEvents: globalData.historicalData.length,
                 eventsWithSales: 0,

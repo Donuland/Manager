@@ -1,6 +1,6 @@
 // ========================================
 // DONULAND MANAGEMENT SYSTEM - ANALYSIS
-// Analýza dat a kalendář akcí
+// Zjednodušená analýza dat a kalendář akcí
 // ========================================
 
 const analysis = {
@@ -73,7 +73,6 @@ const analysis = {
                 .sort((a, b) => b - a);
             
             const bestEvent = sortedEvents[0] || 0;
-            const worstEvent = sortedEvents[sortedEvents.length - 1] || 0;
 
             // Průměrné hodnocení
             const ratingsSum = validEvents.reduce((sum, row) => {
@@ -146,7 +145,6 @@ const analysis = {
             const cityColumn = utils.findColumn(globalData.historicalData, ['Lokalita', 'C']);
             const dateColumn = utils.findColumn(globalData.historicalData, ['Datum', 'B']);
             const ratingColumn = utils.findColumn(globalData.historicalData, ['hodnocení akce 1-5', 'X']);
-            const categoryColumn = utils.findColumn(globalData.historicalData, ['kategorie', 'E']);
 
             const validEvents = globalData.historicalData
                 .filter(row => parseFloat(row[salesColumn] || 0) > 0)
@@ -156,7 +154,6 @@ const analysis = {
                     date: row[dateColumn] || '',
                     sales: parseFloat(row[salesColumn] || 0),
                     rating: parseFloat(row[ratingColumn] || 0),
-                    category: row[categoryColumn] || '',
                     revenue: parseFloat(row[salesColumn] || 0) * CONFIG.DONUT_PRICE
                 }))
                 .sort((a, b) => b.sales - a.sales)
@@ -227,7 +224,7 @@ const analysis = {
                     totalSales: stats.totalSales,
                     rating: stats.ratingCount > 0 ? stats.totalRating / stats.ratingCount : 0
                 }))
-                .filter(city => city.events >= 1) // Alespoň 1 akce
+                .filter(city => city.events >= 1)
                 .sort((a, b) => b.avgSales - a.avgSales)
                 .slice(0, 10);
 
@@ -251,7 +248,6 @@ const analysis = {
             ui.showError('topCities', 'Chyba při analýze měst', error.message);
         }
     },
-
     // Analýza podle kategorií
     displayCategoryAnalysis() {
         try {
@@ -368,10 +364,8 @@ const analysis = {
                     const dateStr = row[dateColumn] || '';
                     if (!dateStr.trim()) return false;
                     
-                    // Pokus o parsování různých formátů data
                     let eventDate;
                     try {
-                        // Zkusíme formát DD.MM.YYYY
                         if (dateStr.includes('.')) {
                             const parts = dateStr.split('.');
                             if (parts.length >= 3) {
@@ -404,7 +398,7 @@ const analysis = {
                         category: row[categoryColumn] || '',
                         confirmed: row[confirmedColumn] === 'ANO',
                         visitors: parseFloat(row[visitorsColumn] || 0),
-                        sales: 0, // Budoucí akce nemají prodeje
+                        sales: 0,
                         notes: ''
                     };
                 })

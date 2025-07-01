@@ -1,75 +1,67 @@
 // ========================================
 // DONULAND MANAGEMENT SYSTEM - MAIN APP
-// Hlavní soubor aplikace - inicializace a koordinace
+// Hlavní soubor aplikace - zjednodušená inicializace
 // ========================================
 
 // Globální inicializace aplikace
 document.addEventListener('DOMContentLoaded', function() {
     debug('🚀 Spouštím Donuland Management System...');
     
-    // Robustnější inicializace s retry mechanismem
-    initializeAppWithRetry();
+    setTimeout(() => {
+        initializeApp();
+    }, 500);
 });
 
-// Hlavní inicializační funkce s retry
-async function initializeAppWithRetry(attempt = 1, maxAttempts = 3) {
-    debug(`📱 Inicializuji aplikaci (pokus ${attempt}/${maxAttempts})...`);
+// Hlavní inicializační funkce
+async function initializeApp() {
+    debug('📱 Inicializuji aplikace...');
     
     try {
-        // Kontrola, že všechny potřebné moduly jsou načtené
+        // Kontrola načtených modulů
         const moduleCheck = checkRequiredModules();
         
-        if (!moduleCheck.allLoaded && attempt < maxAttempts) {
-            console.warn(`⚠️ Chybí moduly: ${moduleCheck.missing.join(', ')}. Zkouším znovu za 1s...`);
-            setTimeout(() => {
-                initializeAppWithRetry(attempt + 1, maxAttempts);
-            }, 1000);
-            return;
-        }
-        
         if (!moduleCheck.allLoaded) {
-            throw new Error(`Kritické moduly nenačtené: ${moduleCheck.missing.join(', ')}`);
+            console.warn(`⚠️ Chybí moduly: ${moduleCheck.missing.join(', ')}`);
+            // Pokusíme se pokračovat i bez všech modulů
         }
         
-        // Postupná inicializace s error handling
-        await initializeApp();
+        // 1. Načtení nastavení
+        if (typeof settings !== 'undefined') {
+            settings.loadSettings();
+        }
+        
+        // 2. Inicializace navigace
+        if (typeof navigation !== 'undefined') {
+            navigation.init();
+        }
+        
+        // 3. Nastavení event listenerů
+        setupEventListeners();
+        
+        // 4. Počáteční načtení dat (na pozadí)
+        performInitialDataLoad().catch(error => {
+            debugWarn('⚠️ Počáteční načtení dat selhalo:', error);
+        });
+        
+        // 5. Finalizace
+        finalizeInitialization();
+        
+        debug('✅ Aplikace úspěšně inicializována');
         
     } catch (error) {
-        debugError('❌ Kritická chyba při inicializaci aplikace:', error);
-        
-        if (attempt < maxAttempts) {
-            console.warn(`⚠️ Zkouším reinicializaci za 2s (pokus ${attempt + 1}/${maxAttempts})`);
-            setTimeout(() => {
-                initializeAppWithRetry(attempt + 1, maxAttempts);
-            }, 2000);
-        } else {
-            showCriticalError(error);
-        }
+        debugError('❌ Chyba při inicializaci aplikace:', error);
+        showCriticalError(error);
     }
 }
 
 // Kontrola načtených modulů
 function checkRequiredModules() {
     const requiredModules = [
-        { name: 'CONFIG', obj: window.CONFIG },
-        { name: 'utils', obj: window.utils },
-        { name: 'ui', obj: window.ui },
-        { name: 'dataManager', obj: window.dataManager },
-        { name: 'predictor', obj: window.predictor },
-        { name: 'analysis', obj: window.analysis },
-        { name: 'weatherService', obj: window.weatherService },
-        { name: 'mapsService', obj: window.mapsService },
-        { name: 'navigation', obj: window.navigation },
-        { name: 'settings', obj: window.settings }
+        'CONFIG', 'utils', 'ui', 'dataManager', 'predictor', 
+        'analysis', 'weatherService', 'mapsService', 'navigation', 'settings'
     ];
     
-    const missing = [];
-    
-    for (const module of requiredModules) {
-        if (typeof module.obj === 'undefined') {
-            missing.push(module.name);
-        }
-    }
+    const missing = requiredModules.filter(module => typeof window[module] === 'undefined');
     
     return {
         allLoaded: missing.length === 0,
@@ -79,65 +71,7 @@ function checkRequiredModules() {
     };
 }
 
-// Hlavní inicializační funkce
-async function initializeApp() {
-    debug('📱 Inicializuji aplikaci...');
-    
-    try {
-        // 1. Načtení a aplikace nastavení
-        await safeModuleCall('settings.loadSettings', () => {
-            if (typeof settings !== 'undefined' && typeof settings.loadSettings === 'function') {
-                settings.loadSettings();
-                return true;
-            }
-            return false;
-        });
-        
-        // 2. Inicializace navigace
-        await safeModuleCall('navigation.init', () => {
-            if (typeof navigation !== 'undefined' && typeof navigation.init === 'function') {
-                navigation.init();
-                return true;
-            }
-            return false;
-        });
-        
-        // 3. Nastavení event listenerů
-        setupEventListeners();
-        
-        // 4. Počáteční načtení dat (non-blocking)
-        performInitialDataLoad().catch(error => {
-            debugWarn('⚠️ Počáteční načtení dat selhalo:', error);
-        });
-        
-        // 5. Finalizace UI
-        finalizeInitialization();
-        
-        debug('✅ Aplikace úspěšně inicializována');
-        
-    } catch (error) {
-        debugError('❌ Chyba při inicializaci aplikace:', error);
-        throw error;
-    }
-}
-
-// Bezpečné volání modulů
-async function safeModuleCall(moduleName, moduleFunction) {
-    try {
-        const result = await moduleFunction();
-        if (result !== false) {
-            debug(`✅ ${moduleName} - úspěšně inicializován`);
-        } else {
-            debugWarn(`⚠️ ${moduleName} - modul není dostupný`);
-        }
-        return result;
-    } catch (error) {
-        debugError(`❌ ${moduleName} - chyba při inicializaci:`, error);
-        return false;
-    }
-}
-
-// Nastavení event listenerů s error handling
+// Nastavení event listenerů
 function setupEventListeners() {
     debug('🔗 Nastavuji event listenery...');
     
@@ -153,10 +87,10 @@ function setupEventListeners() {
         formElements.forEach(elementId => {
             const element = document.getElementById(elementId);
             if (element) {
-                // Debounced predikce pro input události
+                // Debounced predikce
                 const debouncedUpdate = utils.debounce(() => {
                     try {
-                        if (isFormReadyForPrediction()) {
+                        if (isFormReadyForPrediction() && typeof predictor !== 'undefined') {
                             predictor.updatePrediction();
                         }
                     } catch (error) {
@@ -165,19 +99,11 @@ function setupEventListeners() {
                 }, 1000);
                 
                 element.addEventListener('input', debouncedUpdate);
-                element.addEventListener('change', () => {
-                    try {
-                        if (isFormReadyForPrediction()) {
-                            predictor.updatePrediction();
-                        }
-                    } catch (error) {
-                        debugError(`Chyba při change predikce z ${elementId}:`, error);
-                    }
-                });
+                element.addEventListener('change', debouncedUpdate);
             }
         });
         
-        // Speciální handlery s error handling
+        // Speciální handlery
         setupSpecialHandlers();
         
         // Globální event listenery
@@ -187,13 +113,13 @@ function setupEventListeners() {
         
     } catch (error) {
         debugError('❌ Chyba při nastavování event listenerů:', error);
-        throw error;
     }
 }
 
 // Speciální handlery pro konkrétní pole
 function setupSpecialHandlers() {
     try {
+        // City change handler
         const cityInput = document.getElementById('eventCity');
         if (cityInput) {
             cityInput.addEventListener('change', () => {
@@ -210,6 +136,7 @@ function setupSpecialHandlers() {
             });
         }
         
+        // Date change handler
         const dateInput = document.getElementById('eventDate');
         if (dateInput) {
             dateInput.addEventListener('change', () => {
@@ -223,13 +150,14 @@ function setupSpecialHandlers() {
             });
         }
         
+        // Business model handler
         const businessModelSelect = document.getElementById('businessModel');
         if (businessModelSelect) {
             businessModelSelect.addEventListener('change', () => {
                 try {
                     if (typeof ui !== 'undefined') {
                         ui.updateBusinessModelInfo(businessModelSelect.value);
-                        if (isFormReadyForPrediction()) {
+                        if (isFormReadyForPrediction() && typeof predictor !== 'undefined') {
                             predictor.updatePrediction();
                         }
                     }
@@ -239,13 +167,14 @@ function setupSpecialHandlers() {
             });
         }
         
+        // Rent type handler
         const rentTypeSelect = document.getElementById('rentType');
         if (rentTypeSelect) {
             rentTypeSelect.addEventListener('change', () => {
                 try {
                     if (typeof ui !== 'undefined') {
                         ui.updateRentInputs(rentTypeSelect.value);
-                        if (isFormReadyForPrediction()) {
+                        if (isFormReadyForPrediction() && typeof predictor !== 'undefined') {
                             predictor.updatePrediction();
                         }
                     }
@@ -263,7 +192,7 @@ function setupSpecialHandlers() {
 // Globální event listenery
 function setupGlobalEventListeners() {
     try {
-        // Window resize handler pro responsive design
+        // Window resize handler
         window.addEventListener('resize', utils.debounce(() => {
             try {
                 handleWindowResize();
@@ -272,7 +201,7 @@ function setupGlobalEventListeners() {
             }
         }, 250));
         
-        // Před zavřením stránky - uložení dat
+        // Před zavřením stránky
         window.addEventListener('beforeunload', () => {
             try {
                 if (typeof navigation !== 'undefined' && typeof navigation.saveFormData === 'function') {
@@ -283,7 +212,7 @@ function setupGlobalEventListeners() {
             }
         });
         
-        // Handler pro chyby JavaScriptu
+        // Global error handler
         window.addEventListener('error', (event) => {
             debugError('Neočekávaná chyba:', event.error);
             try {
@@ -292,18 +221,6 @@ function setupGlobalEventListeners() {
                 }
             } catch (uiError) {
                 console.error('Chyba při zobrazování error notifikace:', uiError);
-            }
-        });
-        
-        // Handler pro unhandled promise rejections
-        window.addEventListener('unhandledrejection', (event) => {
-            debugError('Unhandled promise rejection:', event.reason);
-            try {
-                if (typeof ui !== 'undefined') {
-                    ui.showNotification('⚠️ Došlo k chybě při komunikaci se službami.', 'warning');
-                }
-            } catch (uiError) {
-                console.error('Chyba při zobrazování promise error notifikace:', uiError);
             }
         });
         
@@ -317,7 +234,7 @@ async function performInitialDataLoad() {
     debug('📊 Spouštím počáteční načtení dat...');
     
     try {
-        // Kontrola, zda jsou nastavení kompletní
+        // Kontrola nastavení
         if (typeof settings !== 'undefined' && typeof settings.areSettingsComplete === 'function') {
             if (!settings.areSettingsComplete()) {
                 if (typeof ui !== 'undefined') {
@@ -326,24 +243,18 @@ async function performInitialDataLoad() {
             }
         }
         
-        // Pokus o automatické načtení dat z Google Sheets
+        // Pokus o automatické načtení dat
         if (CONFIG && CONFIG.GOOGLE_SHEETS_URL) {
             debug('🔄 Pokouším se automaticky načíst data...');
             
-            try {
-                if (typeof dataManager !== 'undefined' && typeof dataManager.loadData === 'function') {
-                    await dataManager.loadData();
-                    debug('✅ Automatické načtení dat úspěšné');
-                }
-            } catch (error) {
-                debugWarn('⚠️ Automatické načtení dat selhalo:', error.message);
-                // Není kritické, uživatel může načíst data manuálně
+            if (typeof dataManager !== 'undefined' && typeof dataManager.loadData === 'function') {
+                await dataManager.loadData();
+                debug('✅ Automatické načtení dat úspěšné');
             }
         }
         
     } catch (error) {
         debugWarn('⚠️ Chyba při počátečním načtení dat:', error);
-        // Není kritická chyba, aplikace může fungovat bez dat
     }
 }
 
@@ -370,7 +281,7 @@ function finalizeInitialization() {
                 ui.showNotification('🍩 Donuland Management System je připraven k použití!', 'success');
             }
             
-            // Nastavení správného stavu status indikátoru
+            // Aktualizace status indikátoru
             updateInitialStatusIndicator();
             
         }, 1000);
@@ -427,9 +338,8 @@ function handleWindowResize() {
     try {
         const width = window.innerWidth;
         
-        // Mobile/tablet adjustments
+        // Mobile adjustments
         if (width <= 768) {
-            // Zajistíme, že sidebar je skrytý na mobilech
             const sidebar = document.querySelector('.sidebar');
             if (sidebar && !sidebar.querySelector('.mobile-menu-toggle')) {
                 if (typeof navigation !== 'undefined' && typeof navigation.setupMobileMenu === 'function') {
@@ -482,9 +392,6 @@ function showCriticalError(error) {
                 ">
                     🔄 Obnovit stránku
                 </button>
-                <div style="margin-top: 20px; font-size: 0.9em; opacity: 0.8;">
-                    Pokud problém přetrvává, zkontrolujte konzoli prohlížeče (F12)
-                </div>
             </div>
         </div>
     `;
@@ -492,113 +399,20 @@ function showCriticalError(error) {
     document.body.innerHTML = errorHTML;
 }
 
-// Globální utility funkce dostupné v konzoli pro debugging
+// Globální utility funkce pro debugging
 window.donuland = {
-    // Data
     data: () => globalData || {},
     config: () => CONFIG || {},
-    
-    // Funkce
-    loadData: () => {
-        try {
-            return typeof dataManager !== 'undefined' ? dataManager.loadData() : console.error('dataManager not loaded');
-        } catch (error) {
-            console.error('Error loading data:', error);
-        }
-    },
-    refreshData: () => {
-        try {
-            return typeof dataManager !== 'undefined' ? dataManager.refreshData() : console.error('dataManager not loaded');
-        } catch (error) {
-            console.error('Error refreshing data:', error);
-        }
-    },
-    clearCache: () => {
-        try {
-            return typeof utils !== 'undefined' ? utils.clearCache() : console.error('utils not loaded');
-        } catch (error) {
-            console.error('Error clearing cache:', error);
-        }
-    },
-    getStats: () => {
-        try {
-            return typeof dataManager !== 'undefined' ? dataManager.getDataStats() : console.error('dataManager not loaded');
-        } catch (error) {
-            console.error('Error getting stats:', error);
-        }
-    },
-    
-    // Test funkce
-    testWeather: (city, date) => {
-        try {
-            return typeof weatherService !== 'undefined' ? weatherService.getWeather(city, date) : console.error('weatherService not loaded');
-        } catch (error) {
-            console.error('Error testing weather:', error);
-        }
-    },
-    testDistance: (from, to) => {
-        try {
-            return typeof mapsService !== 'undefined' ? mapsService.calculateDistance(from, to) : console.error('mapsService not loaded');
-        } catch (error) {
-            console.error('Error testing distance:', error);
-        }
-    },
-    testPrediction: () => {
-        try {
-            return typeof predictor !== 'undefined' ? predictor.updatePrediction() : console.error('predictor not loaded');
-        } catch (error) {
-            console.error('Error testing prediction:', error);
-        }
-    },
-    
-    // Debug funkce
-    enableDebug: () => { 
-        try {
-            if (CONFIG) CONFIG.DEBUG = true; 
-            debug('Debug mode enabled'); 
-        } catch (error) {
-            console.error('Error enabling debug:', error);
-        }
-    },
-    disableDebug: () => { 
-        try {
-            if (CONFIG) CONFIG.DEBUG = false; 
-            console.log('Debug mode disabled'); 
-        } catch (error) {
-            console.error('Error disabling debug:', error);
-        }
-    },
-    showData: () => {
-        try {
-            return globalData && globalData.historicalData ? console.table(globalData.historicalData.slice(0, 10)) : console.log('No data available');
-        } catch (error) {
-            console.error('Error showing data:', error);
-        }
-    },
-    
-    // Status check
+    loadData: () => typeof dataManager !== 'undefined' ? dataManager.loadData() : console.error('dataManager not loaded'),
     checkModules: () => {
-        try {
-            const moduleCheck = checkRequiredModules();
-            console.log(`Načteno ${moduleCheck.loaded}/${moduleCheck.total} modulů`);
-            if (moduleCheck.missing.length > 0) {
-                console.warn('Chybí moduly:', moduleCheck.missing);
-            }
-            return moduleCheck;
-        } catch (error) {
-            console.error('Error checking modules:', error);
+        const moduleCheck = checkRequiredModules();
+        console.log(`Načteno ${moduleCheck.loaded}/${moduleCheck.total} modulů`);
+        if (moduleCheck.missing.length > 0) {
+            console.warn('Chybí moduly:', moduleCheck.missing);
         }
+        return moduleCheck;
     },
-
-    // Restart aplikace
-    restart: () => {
-        try {
-            console.log('🔄 Restartování aplikace...');
-            location.reload();
-        } catch (error) {
-            console.error('Error restarting app:', error);
-        }
-    }
+    restart: () => location.reload()
 };
 
 // Export verzí pro debugging
@@ -611,14 +425,8 @@ Debug: ${CONFIG && CONFIG.DEBUG ? 'Zapnut' : 'Vypnut'}
 
 Dostupné funkce v konzoli:
 - donuland.loadData() - načtení dat
-- donuland.getStats() - statistiky dat
-- donuland.testWeather('Praha', '2025-07-01') - test počasí
-- donuland.enableDebug() - zapnutí debug módu
-- donuland.showData() - zobrazení ukázky dat
-- donuland.checkModules() - kontrola načtených modulů
+- donuland.checkModules() - kontrola modulů
 - donuland.restart() - restart aplikace
-
-Pro více informací: https://github.com/donuland/management-system
 `);
 
 debug('🎉 Donuland Management System připraven k použití!');

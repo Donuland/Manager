@@ -7,10 +7,10 @@
 document.addEventListener('DOMContentLoaded', function() {
     debug('🚀 Spouštím Donuland Management System...');
     
-    // Malé zpoždění pro zajištění načtení všech scriptů
+    // Delší zpoždění pro zajištění načtení všech scriptů
     setTimeout(() => {
         initializeApp();
-    }, 100);
+    }, 1000);
 });
 
 // Hlavní inicializační funkce
@@ -18,11 +18,32 @@ async function initializeApp() {
     debug('📱 Inicializuji aplikaci...');
     
     try {
+        // Kontrola, že všechny potřebné moduly jsou načtené
+        const requiredModules = ['settings', 'navigation', 'ui', 'dataManager', 'predictor'];
+        const missingModules = requiredModules.filter(module => typeof window[module] === 'undefined');
+        
+        if (missingModules.length > 0) {
+            console.warn('⚠️ Chybí moduly:', missingModules);
+            // Pokus o druhé spuštění za 1 sekundu
+            setTimeout(() => {
+                initializeApp();
+            }, 1000);
+            return;
+        }
+        
         // 1. Načtení a aplikace nastavení
-        settings.loadSettings();
+        if (typeof settings !== 'undefined' && typeof settings.loadSettings === 'function') {
+            settings.loadSettings();
+        } else {
+            console.warn('⚠️ Settings modul není dostupný');
+        }
         
         // 2. Inicializace navigace
-        navigation.init();
+        if (typeof navigation !== 'undefined' && typeof navigation.init === 'function') {
+            navigation.init();
+        } else {
+            console.warn('⚠️ Navigation modul není dostupný');
+        }
         
         // 3. Nastavení event listenerů
         setupEventListeners();
@@ -76,9 +97,11 @@ function setupEventListeners() {
     const cityInput = document.getElementById('eventCity');
     if (cityInput) {
         cityInput.addEventListener('change', () => {
-            predictor.updateDistance();
-            if (document.getElementById('eventDate').value) {
-                predictor.updateWeather();
+            if (typeof predictor !== 'undefined') {
+                predictor.updateDistance();
+                if (document.getElementById('eventDate').value) {
+                    predictor.updateWeather();
+                }
             }
         });
     }
@@ -86,7 +109,7 @@ function setupEventListeners() {
     const dateInput = document.getElementById('eventDate');
     if (dateInput) {
         dateInput.addEventListener('change', () => {
-            if (document.getElementById('eventCity').value) {
+            if (typeof predictor !== 'undefined' && document.getElementById('eventCity').value) {
                 predictor.updateWeather();
             }
         });
@@ -95,9 +118,11 @@ function setupEventListeners() {
     const businessModelSelect = document.getElementById('businessModel');
     if (businessModelSelect) {
         businessModelSelect.addEventListener('change', () => {
-            ui.updateBusinessModelInfo(businessModelSelect.value);
-            if (isFormReadyForPrediction()) {
-                predictor.updatePrediction();
+            if (typeof ui !== 'undefined') {
+                ui.updateBusinessModelInfo(businessModelSelect.value);
+                if (isFormReadyForPrediction()) {
+                    predictor.updatePrediction();
+                }
             }
         });
     }
@@ -105,9 +130,11 @@ function setupEventListeners() {
     const rentTypeSelect = document.getElementById('rentType');
     if (rentTypeSelect) {
         rentTypeSelect.addEventListener('change', () => {
-            ui.updateRentInputs(rentTypeSelect.value);
-            if (isFormReadyForPrediction()) {
-                predictor.updatePrediction();
+            if (typeof ui !== 'undefined') {
+                ui.updateRentInputs(rentTypeSelect.value);
+                if (isFormReadyForPrediction()) {
+                    predictor.updatePrediction();
+                }
             }
         });
     }
@@ -119,13 +146,17 @@ function setupEventListeners() {
     
     // Před zavřením stránky - uložení dat
     window.addEventListener('beforeunload', () => {
-        navigation.saveFormData();
+        if (typeof navigation !== 'undefined' && typeof navigation.saveFormData === 'function') {
+            navigation.saveFormData();
+        }
     });
     
     // Handler pro chyby JavaScriptu
     window.addEventListener('error', (event) => {
         debugError('Neočekávaná chyba:', event.error);
-        ui.showNotification('⚠️ Došlo k neočekávané chybě. Zkuste obnovit stránku.', 'warning');
+        if (typeof ui !== 'undefined') {
+            ui.showNotification('⚠️ Došlo k neočekávané chybě. Zkuste obnovit stránku.', 'warning');
+        }
     });
     
     debug('✅ Event listenery nastaveny');
@@ -137,18 +168,23 @@ async function performInitialDataLoad() {
     
     try {
         // Kontrola, zda jsou nastavení kompletní
-        if (!settings.areSettingsComplete()) {
-            ui.showNotification('⚠️ Dokončete prosím nastavení v sekci Nastavení', 'warning');
-            // Ale pokračujeme v inicializaci
+        if (typeof settings !== 'undefined' && typeof settings.areSettingsComplete === 'function') {
+            if (!settings.areSettingsComplete()) {
+                if (typeof ui !== 'undefined') {
+                    ui.showNotification('⚠️ Dokončete prosím nastavení v sekci Nastavení', 'warning');
+                }
+            }
         }
         
         // Pokus o automatické načtení dat z Google Sheets
-        if (CONFIG.GOOGLE_SHEETS_URL) {
+        if (CONFIG && CONFIG.GOOGLE_SHEETS_URL) {
             debug('🔄 Pokouším se automaticky načíst data...');
             
             try {
-                await dataManager.loadData();
-                debug('✅ Automatické načtení dat úspěšné');
+                if (typeof dataManager !== 'undefined' && typeof dataManager.loadData === 'function') {
+                    await dataManager.loadData();
+                    debug('✅ Automatické načtení dat úspěšné');
+                }
             } catch (error) {
                 debugWarn('⚠️ Automatické načtení dat selhalo:', error.message);
                 // Není kritické, uživatel může načíst data manuálně
@@ -179,16 +215,20 @@ function finalizeInitialization() {
         }
         
         // Zobrazení uvítací zprávy
-        ui.showNotification('🍩 Donuland Management System je připraven k použití!', 'success');
-        
-        // Nastavení správného stavu status indikátoru
-        if (globalData.historicalData.length > 0) {
-            ui.updateStatusIndicator('online', `${globalData.historicalData.length} záznamů`);
-        } else {
-            ui.updateStatusIndicator('offline', 'Žádná data');
+        if (typeof ui !== 'undefined') {
+            ui.showNotification('🍩 Donuland Management System je připraven k použití!', 'success');
         }
         
-    }, 3000); // 3 sekundy loading screen
+        // Nastavení správného stavu status indikátoru
+        if (typeof ui !== 'undefined' && globalData && globalData.historicalData) {
+            if (globalData.historicalData.length > 0) {
+                ui.updateStatusIndicator('online', `${globalData.historicalData.length} záznamů`);
+            } else {
+                ui.updateStatusIndicator('offline', 'Žádná data');
+            }
+        }
+        
+    }, 1000); // 1 sekunda místo 3 sekund
 }
 
 // Kontrola, zda je formulář připraven pro predikci
@@ -213,7 +253,9 @@ function handleWindowResize() {
         // Zajistíme, že sidebar je skrytý na mobilech
         const sidebar = document.querySelector('.sidebar');
         if (sidebar && !sidebar.querySelector('.mobile-menu-toggle')) {
-            navigation.setupMobileMenu();
+            if (typeof navigation !== 'undefined' && typeof navigation.setupMobileMenu === 'function') {
+                navigation.setupMobileMenu();
+            }
         }
     }
     
@@ -268,28 +310,35 @@ function showCriticalError(error) {
 // Globální utility funkce dostupné v konzoli pro debugging
 window.donuland = {
     // Data
-    data: globalData,
-    config: CONFIG,
+    data: () => globalData || {},
+    config: () => CONFIG || {},
     
     // Funkce
-    loadData: () => dataManager.loadData(),
-    refreshData: () => dataManager.refreshData(),
-    clearCache: () => utils.clearCache(),
-    getStats: () => dataManager.getDataStats(),
+    loadData: () => typeof dataManager !== 'undefined' ? dataManager.loadData() : console.error('dataManager not loaded'),
+    refreshData: () => typeof dataManager !== 'undefined' ? dataManager.refreshData() : console.error('dataManager not loaded'),
+    clearCache: () => typeof utils !== 'undefined' ? utils.clearCache() : console.error('utils not loaded'),
+    getStats: () => typeof dataManager !== 'undefined' ? dataManager.getDataStats() : console.error('dataManager not loaded'),
     
     // Test funkce
-    testWeather: (city, date) => weatherService.getWeather(city, date),
-    testDistance: (from, to) => mapsService.calculateDistance(from, to),
-    testPrediction: () => predictor.updatePrediction(),
+    testWeather: (city, date) => typeof weatherService !== 'undefined' ? weatherService.getWeather(city, date) : console.error('weatherService not loaded'),
+    testDistance: (from, to) => typeof mapsService !== 'undefined' ? mapsService.calculateDistance(from, to) : console.error('mapsService not loaded'),
+    testPrediction: () => typeof predictor !== 'undefined' ? predictor.updatePrediction() : console.error('predictor not loaded'),
     
     // Debug funkce
-    enableDebug: () => { CONFIG.DEBUG = true; debug('Debug mode enabled'); },
-    disableDebug: () => { CONFIG.DEBUG = false; console.log('Debug mode disabled'); },
-    showData: () => console.table(globalData.historicalData.slice(0, 10)),
+    enableDebug: () => { if (CONFIG) CONFIG.DEBUG = true; debug('Debug mode enabled'); },
+    disableDebug: () => { if (CONFIG) CONFIG.DEBUG = false; console.log('Debug mode disabled'); },
+    showData: () => globalData && globalData.historicalData ? console.table(globalData.historicalData.slice(0, 10)) : console.log('No data available'),
     
-    // Utility
-    utils: utils,
-    ui: ui
+    // Status check
+    checkModules: () => {
+        const modules = ['CONFIG', 'utils', 'dataManager', 'ui', 'weatherService', 'mapsService', 'predictor', 'analysis', 'navigation', 'settings'];
+        const status = {};
+        modules.forEach(module => {
+            status[module] = typeof window[module] !== 'undefined' ? '✅ Loaded' : '❌ Missing';
+        });
+        console.table(status);
+        return status;
+    }
 };
 
 // Export verzí pro debugging
@@ -298,7 +347,7 @@ console.log(`
 ============================
 Verze: 1.0.0
 Načteno: ${new Date().toLocaleString('cs-CZ')}
-Debug: ${CONFIG.DEBUG ? 'Zapnut' : 'Vypnut'}
+Debug: ${CONFIG && CONFIG.DEBUG ? 'Zapnut' : 'Vypnut'}
 
 Dostupné funkce v konzoli:
 - donuland.loadData() - načtení dat
@@ -306,6 +355,7 @@ Dostupné funkce v konzoli:
 - donuland.testWeather('Praha', '2025-07-01') - test počasí
 - donuland.enableDebug() - zapnutí debug módu
 - donuland.showData() - zobrazení ukázky dat
+- donuland.checkModules() - kontrola načtených modulů
 
 Pro více informací: https://github.com/donuland/management-system
 `);

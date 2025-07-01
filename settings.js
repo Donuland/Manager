@@ -10,18 +10,6 @@ const settings = {
             const settingsData = {
                 // API nastavení
                 googleSheetsUrl: document.getElementById('googleSheetsUrl').value.trim(),
-// ========================================
-// DONULAND MANAGEMENT SYSTEM - SETTINGS
-// Správa nastavení aplikace
-// ========================================
-
-const settings = {
-    // Uložení všech nastavení
-    saveSettings() {
-        try {
-            const settingsData = {
-                // API nastavení
-                googleSheetsUrl: document.getElementById('googleSheetsUrl').value.trim(),
                 weatherApiKey: document.getElementById('weatherApiKey').value.trim(),
                 mapsApiKey: document.getElementById('mapsApiKey').value.trim(),
                 
@@ -51,12 +39,12 @@ const settings = {
             this.updateGlobalConfig(settingsData);
             
             ui.showNotification('✅ Nastavení byla úspěšně uložena', 'success');
-            debug('💾 Nastavení uložena:', settingsData);
+            console.log('💾 Nastavení uložena:', settingsData);
             
             return true;
 
         } catch (error) {
-            debugError('Chyba při ukládání nastavení:', error);
+            console.error('Chyba při ukládání nastavení:', error);
             ui.showNotification('❌ Chyba při ukládání nastavení: ' + error.message, 'error');
             return false;
         }
@@ -67,13 +55,13 @@ const settings = {
         try {
             const saved = localStorage.getItem('donulandSettings');
             if (!saved) {
-                debug('📋 Žádná uložená nastavení nenalezena, používám výchozí');
+                console.log('📋 Žádná uložená nastavení nenalezena, používám výchozí');
                 this.setDefaultSettings();
                 return;
             }
 
             const settingsData = JSON.parse(saved);
-            debug('🔄 Načítám uložená nastavení:', settingsData);
+            console.log('🔄 Načítám uložená nastavení:', settingsData);
 
             // Aplikace nastavení na formulář
             this.applySettingsToForm(settingsData);
@@ -81,10 +69,10 @@ const settings = {
             // Aktualizace globální konfigurace
             this.updateGlobalConfig(settingsData);
 
-            debug('✅ Nastavení úspěšně načtena');
+            console.log('✅ Nastavení úspěšně načtena');
 
         } catch (error) {
-            debugError('Chyba při načítání nastavení:', error);
+            console.error('Chyba při načítání nastavení:', error);
             ui.showNotification('⚠️ Chyba při načítání nastavení, používám výchozí hodnoty', 'warning');
             this.setDefaultSettings();
         }
@@ -125,7 +113,7 @@ const settings = {
         };
 
         this.applySettingsToForm(defaults);
-        debug('🔧 Výchozí nastavení aplikována');
+        console.log('🔧 Výchozí nastavení aplikována');
     },
 
     // Validace nastavení
@@ -133,7 +121,7 @@ const settings = {
         const errors = [];
 
         // Validace URL
-        if (settingsData.googleSheetsUrl && !utils.isValidUrl(settingsData.googleSheetsUrl)) {
+        if (settingsData.googleSheetsUrl && !this.isValidUrl(settingsData.googleSheetsUrl)) {
             errors.push('Neplatné Google Sheets URL');
         }
 
@@ -187,7 +175,7 @@ const settings = {
         if (settingsData.workHours) CONFIG.WORK_HOURS = settingsData.workHours;
         if (settingsData.fuelCostPerKm) CONFIG.FUEL_COST_PER_KM = settingsData.fuelCostPerKm;
 
-        debug('🔧 Globální konfigurace aktualizována');
+        console.log('🔧 Globální konfigurace aktualizována');
     },
 
     // Test připojení k API službám
@@ -251,7 +239,7 @@ const settings = {
             8000
         );
 
-        debug('🔧 Test připojení dokončen:', results);
+        console.log('🔧 Test připojení dokončen:', results);
     },
 
     // Test Weather API
@@ -275,7 +263,7 @@ const settings = {
             throw new Error(`API error: ${weatherData.message}`);
         }
 
-        debug('🌤️ Weather API test úspěšný');
+        console.log('🌤️ Weather API test úspěšný');
     },
 
     // Test Google Sheets
@@ -309,7 +297,7 @@ const settings = {
             throw new Error('CSV nelze parsovat');
         }
 
-        debug('📊 Google Sheets test úspěšný, načteno řádků:', parsed.length);
+        console.log('📊 Google Sheets test úspěšný, načteno řádků:', parsed.length);
     },
 
     // Reset nastavení na výchozí hodnoty
@@ -328,10 +316,10 @@ const settings = {
                 globalData.distanceCache.clear();
                 
                 ui.showNotification('✅ Nastavení obnovena na výchozí hodnoty', 'success');
-                debug('🔧 Nastavení resetována na výchozí');
+                console.log('🔧 Nastavení resetována na výchozí');
                 
             } catch (error) {
-                debugError('Chyba při resetování nastavení:', error);
+                console.error('Chyba při resetování nastavení:', error);
                 ui.showNotification('❌ Chyba při resetování nastavení', 'error');
             }
         }
@@ -369,7 +357,7 @@ const settings = {
             ui.showNotification('📄 Nastavení exportována do souboru', 'success');
 
         } catch (error) {
-            debugError('Chyba při exportu nastavení:', error);
+            console.error('Chyba při exportu nastavení:', error);
             ui.showNotification('❌ Chyba při exportu nastavení', 'error');
         }
     },
@@ -401,7 +389,7 @@ const settings = {
                 ui.showNotification('✅ Nastavení úspěšně importována. Nezapomeňte je uložit!', 'success');
 
             } catch (error) {
-                debugError('Chyba při importu nastavení:', error);
+                console.error('Chyba při importu nastavení:', error);
                 ui.showNotification('❌ Chyba při importu nastavení: ' + error.message, 'error');
             }
         };
@@ -409,24 +397,8 @@ const settings = {
         input.click();
     },
 
-    // Získání aktuálního nastavení
-    getCurrentSettings() {
-        return {
-            googleSheetsUrl: document.getElementById('googleSheetsUrl').value,
-            weatherApiKey: document.getElementById('weatherApiKey').value,
-            mapsApiKey: document.getElementById('mapsApiKey').value,
-            donutCost: parseFloat(document.getElementById('donutCost').value),
-            franchisePrice: parseFloat(document.getElementById('franchisePrice').value),
-            hourlyWage: parseFloat(document.getElementById('hourlyWage').value),
-            workHours: parseFloat(document.getElementById('workHours').value),
-            fuelCostPerKm: parseFloat(document.getElementById('fuelCostPerKm').value)
-        };
-    },
-
     // Kontrola, zda jsou nastavení kompletní
     areSettingsComplete() {
-        const settings = this.getCurrentSettings();
-        
         const required = [
             'googleSheetsUrl',
             'weatherApiKey', 
@@ -435,9 +407,19 @@ const settings = {
             'hourlyWage'
         ];
 
-        return required.every(key => {
-            const value = settings[key];
-            return value && value.toString().trim().length > 0;
+        return required.every(elementId => {
+            const element = document.getElementById(elementId);
+            return element && element.value && element.value.toString().trim().length > 0;
         });
+    },
+
+    // Helper funkce pro validaci URL
+    isValidUrl(url) {
+        try {
+            new URL(url);
+            return true;
+        } catch {
+            return false;
+        }
     }
 };

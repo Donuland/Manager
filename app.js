@@ -1,397 +1,315 @@
 // ========================================
-// DONULAND MANAGEMENT SYSTEM - MAIN APP
-// Hlavní soubor aplikace - zjednodušená inicializace
+// DONULAND MANAGEMENT SYSTEM - OPRAVENÝ APP.JS
+// Krok 1: Základní inicializace bez chyb
 // ========================================
 
-// Globální inicializace aplikace
+// Globální stav aplikace - jednoduchý a čistý
+window.donulandApp = {
+    isInitialized: false,
+    data: {
+        historicalData: [],
+        isLoading: false,
+        lastDataLoad: null
+    },
+    config: {
+        DONUT_COST: 32,
+        DONUT_PRICE: 50,
+        FRANCHISE_PRICE: 52,
+        HOURLY_WAGE: 150,
+        WORK_HOURS: 10,
+        FUEL_COST_PER_KM: 15,
+        BASE_CITY: 'Praha',
+        DEBUG: true
+    }
+};
+
+// Zjednodušené logování
+function log(message, ...args) {
+    if (window.donulandApp.config.DEBUG) {
+        console.log('[DONULAND]', message, ...args);
+    }
+}
+
+function logError(message, ...args) {
+    console.error('[DONULAND ERROR]', message, ...args);
+}
+
+// Hlavní inicializace
 document.addEventListener('DOMContentLoaded', function() {
-    debug('🚀 Spouštím Donuland Management System...');
+    log('🚀 Spouštím Donuland Management System...');
     
-    setTimeout(() => {
-        initializeApp();
-    }, 500);
+    // Malé zpoždění pro načtení všech zdrojů
+    setTimeout(initializeApp, 200);
 });
 
-// Hlavní inicializační funkce
-async function initializeApp() {
-    debug('📱 Inicializuji aplikace...');
-    
+// Bezpečná inicializace aplikace
+function initializeApp() {
     try {
-        // Kontrola načtených modulů
-        const moduleCheck = checkRequiredModules();
+        log('📱 Inicializuji aplikaci...');
         
-        if (!moduleCheck.allLoaded) {
-            console.warn(`⚠️ Chybí moduly: ${moduleCheck.missing.join(', ')}`);
-            // Pokusíme se pokračovat i bez všech modulů
+        // 1. Kontrola existence základních elementů
+        if (!checkRequiredElements()) {
+            throw new Error('Chybějící HTML elementy');
         }
         
-        // 1. Načtení nastavení
-        if (typeof settings !== 'undefined') {
-            settings.loadSettings();
-        }
+        // 2. Skrytí loading screen a zobrazení aplikace
+        showMainApp();
         
-        // 2. Inicializace navigace
-        if (typeof navigation !== 'undefined') {
-            navigation.init();
-        }
+        // 3. Nastavení základních event listenerů
+        setupBasicEvents();
         
-        // 3. Nastavení event listenerů
-        setupEventListeners();
+        // 4. Nastavení výchozích hodnot
+        setDefaultValues();
         
-        // 4. Počáteční načtení dat (na pozadí)
-        performInitialDataLoad().catch(error => {
-            debugWarn('⚠️ Počáteční načtení dat selhalo:', error);
-        });
+        // 5. Inicializace navigace
+        initNavigation();
         
-        // 5. Finalizace
-        finalizeInitialization();
+        // Označení jako inicializováno
+        window.donulandApp.isInitialized = true;
         
-        debug('✅ Aplikace úspěšně inicializována');
+        log('✅ Aplikace úspěšně inicializována');
+        showNotification('🍩 Donuland Management System je připraven!', 'success');
         
     } catch (error) {
-        debugError('❌ Chyba při inicializaci aplikace:', error);
+        logError('❌ Chyba při inicializaci:', error);
         showCriticalError(error);
     }
 }
 
-// Kontrola načtených modulů
-function checkRequiredModules() {
-    const requiredModules = [
-        'CONFIG', 'utils', 'ui', 'dataManager', 'predictor', 
-        'analysis', 'weatherService', 'mapsService', 'navigation', 'settings'
+// Kontrola existence požadovaných elementů
+function checkRequiredElements() {
+    const required = ['loadingScreen', 'mainApp', 'statusIndicator'];
+    const missing = required.filter(id => !document.getElementById(id));
+    
+    if (missing.length > 0) {
+        logError('Chybějící elementy:', missing);
+        return false;
+    }
+    
+    return true;
+}
+
+// Zobrazení hlavní aplikace
+function showMainApp() {
+    const loadingScreen = document.getElementById('loadingScreen');
+    const mainApp = document.getElementById('mainApp');
+    
+    if (loadingScreen) {
+        loadingScreen.style.display = 'none';
+    }
+    
+    if (mainApp) {
+        mainApp.style.display = 'block';
+    }
+    
+    log('👁️ Aplikace zobrazena');
+}
+
+// Základní event listenery
+function setupBasicEvents() {
+    log('🔗 Nastavuji základní event listenery...');
+    
+    // Globální error handler
+    window.addEventListener('error', (event) => {
+        logError('Neočekávaná chyba:', event.error);
+        showNotification('⚠️ Došlo k chybě. Zkuste obnovit stránku.', 'warning');
+    });
+    
+    // Formulářové prvky - pokud existují
+    const formFields = [
+        'eventName', 'eventCategory', 'eventCity', 'eventDate',
+        'expectedVisitors', 'competition', 'businessModel', 'rentType'
     ];
     
-    const missing = requiredModules.filter(module => typeof window[module] === 'undefined');
+    formFields.forEach(fieldId => {
+        const element = document.getElementById(fieldId);
+        if (element) {
+            element.addEventListener('change', () => {
+                log(`Změna v poli: ${fieldId}`);
+                // Zde bude později logika pro predikci
+            });
+        }
+    });
+}
+
+// Nastavení výchozích hodnot
+function setDefaultValues() {
+    log('⚙️ Nastavuji výchozí hodnoty...');
     
-    return {
-        allLoaded: missing.length === 0,
-        missing: missing,
-        loaded: requiredModules.length - missing.length,
-        total: requiredModules.length
+    // Datum - zítra
+    const dateInput = document.getElementById('eventDate');
+    if (dateInput && !dateInput.value) {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        dateInput.value = tomorrow.toISOString().split('T')[0];
+        dateInput.min = new Date().toISOString().split('T')[0];
+    }
+    
+    // Cena donutu
+    const priceInput = document.getElementById('donutPrice');
+    if (priceInput && !priceInput.value) {
+        priceInput.value = window.donulandApp.config.DONUT_PRICE;
+    }
+    
+    // Délka akce
+    const durationSelect = document.getElementById('eventDuration');
+    if (durationSelect && !durationSelect.value) {
+        durationSelect.value = '1';
+    }
+    
+    // Status indikátor
+    updateStatusIndicator('offline', 'Žádná data');
+}
+
+// Inicializace navigace
+function initNavigation() {
+    log('🧭 Inicializuji navigaci...');
+    
+    // Globální funkce pro přepínání sekcí
+    window.showSection = function(sectionId) {
+        log('📋 Přepínám na sekci:', sectionId);
+        
+        // Skrytí všech sekcí
+        document.querySelectorAll('.section').forEach(section => {
+            section.classList.remove('active');
+        });
+        
+        // Zobrazení vybrané sekce
+        const targetSection = document.getElementById(sectionId);
+        if (targetSection) {
+            targetSection.classList.add('active');
+        }
+        
+        // Aktualizace navigace
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.classList.remove('active');
+            
+            // Kontrola onclick atributu
+            const onclick = item.getAttribute('onclick');
+            if (onclick && onclick.includes(`'${sectionId}'`)) {
+                item.classList.add('active');
+            }
+        });
+    };
+    
+    // Globální funkce pro načtení dat
+    window.loadDataFromSheets = async function(sheetsUrl) {
+        if (!sheetsUrl) {
+            sheetsUrl = document.getElementById('googleSheetsUrl')?.value;
+        }
+        
+        if (!sheetsUrl) {
+            showNotification('❌ Zadejte URL Google Sheets', 'error');
+            return;
+        }
+        
+        try {
+            log('📊 Načítám data z Google Sheets...');
+            showNotification('🔄 Načítám data...', 'info');
+            updateStatusIndicator('loading', 'Načítám...');
+            
+            // Zde bude později implementováno načítání dat
+            await new Promise(resolve => setTimeout(resolve, 2000)); // Simulace
+            
+            showNotification('✅ Data načtena (simulace)', 'success');
+            updateStatusIndicator('online', 'Simulace dat');
+            
+        } catch (error) {
+            logError('Chyba při načítání dat:', error);
+            showNotification(`❌ Chyba: ${error.message}`, 'error');
+            updateStatusIndicator('error', 'Chyba');
+        }
     };
 }
 
-// Nastavení event listenerů
-function setupEventListeners() {
-    debug('🔗 Nastavuji event listenery...');
+// Aktualizace status indikátoru
+function updateStatusIndicator(status, message) {
+    const indicator = document.getElementById('statusIndicator');
+    if (!indicator) return;
     
-    try {
-        // Formulářové prvky pro automatickou aktualizaci predikce
-        const formElements = [
-            'eventName', 'eventCategory', 'eventCity', 'eventDate',
-            'expectedVisitors', 'eventDuration', 'competition', 
-            'businessModel', 'rentType', 'donutPrice',
-            'fixedRent', 'percentageRent', 'mixedFixed', 'mixedPercentage'
-        ];
-        
-        formElements.forEach(elementId => {
-            const element = document.getElementById(elementId);
-            if (element) {
-                // Debounced predikce
-                const debouncedUpdate = utils.debounce(() => {
-                    try {
-                        if (isFormReadyForPrediction() && typeof predictor !== 'undefined') {
-                            predictor.updatePrediction();
-                        }
-                    } catch (error) {
-                        debugError(`Chyba při aktualizaci predikce z ${elementId}:`, error);
-                    }
-                }, 1000);
-                
-                element.addEventListener('input', debouncedUpdate);
-                element.addEventListener('change', debouncedUpdate);
-            }
-        });
-        
-        // Speciální handlery
-        setupSpecialHandlers();
-        
-        // Globální event listenery
-        setupGlobalEventListeners();
-        
-        debug('✅ Event listenery nastaveny');
-        
-    } catch (error) {
-        debugError('❌ Chyba při nastavování event listenerů:', error);
-    }
-}
-
-// Speciální handlery pro konkrétní pole
-function setupSpecialHandlers() {
-    try {
-        // City change handler
-        const cityInput = document.getElementById('eventCity');
-        if (cityInput) {
-            cityInput.addEventListener('change', () => {
-                try {
-                    if (typeof predictor !== 'undefined') {
-                        predictor.updateDistance();
-                        if (document.getElementById('eventDate').value) {
-                            predictor.updateWeather();
-                        }
-                    }
-                } catch (error) {
-                    debugError('Chyba při city change:', error);
-                }
-            });
-        }
-        
-        // Date change handler
-        const dateInput = document.getElementById('eventDate');
-        if (dateInput) {
-            dateInput.addEventListener('change', () => {
-                try {
-                    if (typeof predictor !== 'undefined' && document.getElementById('eventCity').value) {
-                        predictor.updateWeather();
-                    }
-                } catch (error) {
-                    debugError('Chyba při date change:', error);
-                }
-            });
-        }
-        
-        // Business model handler
-        const businessModelSelect = document.getElementById('businessModel');
-        if (businessModelSelect) {
-            businessModelSelect.addEventListener('change', () => {
-                try {
-                    if (typeof ui !== 'undefined') {
-                        ui.updateBusinessModelInfo(businessModelSelect.value);
-                        if (isFormReadyForPrediction() && typeof predictor !== 'undefined') {
-                            predictor.updatePrediction();
-                        }
-                    }
-                } catch (error) {
-                    debugError('Chyba při business model change:', error);
-                }
-            });
-        }
-        
-        // Rent type handler
-        const rentTypeSelect = document.getElementById('rentType');
-        if (rentTypeSelect) {
-            rentTypeSelect.addEventListener('change', () => {
-                try {
-                    if (typeof ui !== 'undefined') {
-                        ui.updateRentInputs(rentTypeSelect.value);
-                        if (isFormReadyForPrediction() && typeof predictor !== 'undefined') {
-                            predictor.updatePrediction();
-                        }
-                    }
-                } catch (error) {
-                    debugError('Chyba při rent type change:', error);
-                }
-            });
-        }
-        
-    } catch (error) {
-        debugWarn('Chyba při nastavování speciálních handlerů:', error);
-    }
-}
-
-// Globální event listenery
-function setupGlobalEventListeners() {
-    try {
-        // Window resize handler
-        window.addEventListener('resize', utils.debounce(() => {
-            try {
-                handleWindowResize();
-            } catch (error) {
-                debugError('Chyba při resize:', error);
-            }
-        }, 250));
-        
-        // Před zavřením stránky
-        window.addEventListener('beforeunload', () => {
-            try {
-                if (typeof navigation !== 'undefined' && typeof navigation.saveFormData === 'function') {
-                    navigation.saveFormData();
-                }
-            } catch (error) {
-                debugError('Chyba při ukládání před zavřením:', error);
-            }
-        });
-        
-        // Global error handler
-        window.addEventListener('error', (event) => {
-            debugError('Neočekávaná chyba:', event.error);
-            try {
-                if (typeof ui !== 'undefined') {
-                    ui.showNotification('⚠️ Došlo k neočekávané chybě. Zkuste obnovit stránku.', 'warning');
-                }
-            } catch (uiError) {
-                console.error('Chyba při zobrazování error notifikace:', uiError);
-            }
-        });
-        
-    } catch (error) {
-        debugWarn('Chyba při nastavování globálních event listenerů:', error);
-    }
-}
-
-// Počáteční načtení dat
-async function performInitialDataLoad() {
-    debug('📊 Spouštím počáteční načtení dat...');
+    // Odstranění starých tříd
+    indicator.classList.remove('online', 'error', 'loading');
     
-    try {
-        // Kontrola nastavení
-        if (typeof settings !== 'undefined' && typeof settings.areSettingsComplete === 'function') {
-            if (!settings.areSettingsComplete()) {
-                if (typeof ui !== 'undefined') {
-                    ui.showNotification('⚠️ Dokončete prosím nastavení v sekci Nastavení', 'warning');
-                }
-            }
-        }
-        
-        // Pokus o automatické načtení dat
-        if (CONFIG && CONFIG.GOOGLE_SHEETS_URL) {
-            debug('🔄 Pokouším se automaticky načíst data...');
-            
-            if (typeof dataManager !== 'undefined' && typeof dataManager.loadData === 'function') {
-                await dataManager.loadData();
-                debug('✅ Automatické načtení dat úspěšné');
-            }
-        }
-        
-    } catch (error) {
-        debugWarn('⚠️ Chyba při počátečním načtení dat:', error);
+    // Přidání nové třídy
+    if (status !== 'offline') {
+        indicator.classList.add(status);
     }
-}
-
-// Finalizace inicializace
-function finalizeInitialization() {
-    debug('🎯 Finalizuji inicializaci...');
     
-    try {
-        // Skrytí loading screen a zobrazení hlavní aplikace
-        setTimeout(() => {
-            const loadingScreen = document.getElementById('loadingScreen');
-            const mainApp = document.getElementById('mainApp');
-            
-            if (loadingScreen) {
-                loadingScreen.style.display = 'none';
-            }
-            
-            if (mainApp) {
-                mainApp.style.display = 'block';
-            }
-            
-            // Zobrazení uvítací zprávy
-            if (typeof ui !== 'undefined') {
-                ui.showNotification('🍩 Donuland Management System je připraven k použití!', 'success');
-            }
-            
-            // Aktualizace status indikátoru
-            updateInitialStatusIndicator();
-            
-        }, 1000);
-        
-    } catch (error) {
-        debugError('Chyba při finalizaci:', error);
-        // Pokusíme se alespoň skrýt loading screen
-        try {
-            const loadingScreen = document.getElementById('loadingScreen');
-            const mainApp = document.getElementById('mainApp');
-            if (loadingScreen) loadingScreen.style.display = 'none';
-            if (mainApp) mainApp.style.display = 'block';
-        } catch (finalError) {
-            debugError('Kritická chyba při finalizaci UI:', finalError);
-        }
+    // Aktualizace textu
+    const textSpan = indicator.querySelector('span:last-child');
+    if (textSpan) {
+        textSpan.textContent = message;
     }
+    
+    log(`📊 Status: ${status} - ${message}`);
 }
 
-// Aktualizace počátečního status indikátoru
-function updateInitialStatusIndicator() {
-    try {
-        if (typeof ui !== 'undefined' && globalData && globalData.historicalData) {
-            if (globalData.historicalData.length > 0) {
-                ui.updateStatusIndicator('online', `${globalData.historicalData.length} záznamů`);
-            } else {
-                ui.updateStatusIndicator('offline', 'Žádná data');
-            }
+// Zobrazení notifikace
+function showNotification(message, type = 'info') {
+    log(`📢 Notifikace [${type}]: ${message}`);
+    
+    const container = document.getElementById('notificationContainer');
+    if (!container) {
+        // Fallback na console pokud není kontejner
+        console.log(`[${type.toUpperCase()}] ${message}`);
+        return;
+    }
+    
+    // Odstranění existujících notifikací
+    container.innerHTML = '';
+    
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    
+    const icons = {
+        'success': '✅',
+        'error': '❌',
+        'warning': '⚠️',
+        'info': 'ℹ️'
+    };
+    
+    notification.innerHTML = `
+        <div class="notification-content">
+            <span class="notification-icon">${icons[type] || 'ℹ️'}</span>
+            <span class="notification-text">${message}</span>
+            <span class="notification-close" onclick="this.parentElement.parentElement.remove()">✕</span>
+        </div>
+    `;
+    
+    container.appendChild(notification);
+    
+    // Animace zobrazení
+    setTimeout(() => notification.classList.add('show'), 100);
+    
+    // Auto odstranění po 5 sekundách
+    setTimeout(() => {
+        if (notification.parentElement) {
+            notification.classList.remove('show');
+            setTimeout(() => notification.remove(), 300);
         }
-    } catch (error) {
-        debugWarn('Chyba při aktualizaci status indikátoru:', error);
-    }
-}
-
-// Kontrola, zda je formulář připraven pro predikci
-function isFormReadyForPrediction() {
-    try {
-        const requiredFields = [
-            'eventName', 'eventCategory', 'eventCity', 'eventDate',
-            'expectedVisitors', 'competition', 'businessModel', 'rentType'
-        ];
-        
-        return requiredFields.every(fieldId => {
-            const element = document.getElementById(fieldId);
-            return element && element.value && element.value.trim().length > 0;
-        });
-    } catch (error) {
-        debugError('Chyba při kontrole formuláře:', error);
-        return false;
-    }
-}
-
-// Handler pro změnu velikosti okna
-function handleWindowResize() {
-    try {
-        const width = window.innerWidth;
-        
-        // Mobile adjustments
-        if (width <= 768) {
-            const sidebar = document.querySelector('.sidebar');
-            if (sidebar && !sidebar.querySelector('.mobile-menu-toggle')) {
-                if (typeof navigation !== 'undefined' && typeof navigation.setupMobileMenu === 'function') {
-                    navigation.setupMobileMenu();
-                }
-            }
-        }
-        
-        debug(`📱 Window resized to: ${width}x${window.innerHeight}`);
-    } catch (error) {
-        debugError('Chyba při resize handling:', error);
-    }
+    }, 5000);
 }
 
 // Zobrazení kritické chyby
 function showCriticalError(error) {
     const errorHTML = `
         <div style="
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: linear-gradient(135deg, #ff6b6b, #ee5a52);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 10000;
-            color: white;
-            font-family: 'Segoe UI', sans-serif;
+            display: flex; align-items: center; justify-content: center;
+            z-index: 10000; color: white; font-family: sans-serif;
         ">
             <div style="text-align: center; max-width: 500px; padding: 40px;">
                 <div style="font-size: 4em; margin-bottom: 20px;">💥</div>
-                <h1 style="margin-bottom: 20px;">Kritická chyba aplikace</h1>
-                <p style="margin-bottom: 30px; font-size: 1.1em;">
-                    Došlo k neočekávané chybě při inicializaci aplikace.
-                </p>
-                <div style="background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px; margin-bottom: 30px;">
-                    <code style="color: #ffeb3b;">${error.message}</code>
+                <h1>Kritická chyba aplikace</h1>
+                <p style="margin: 20px 0;">Došlo k neočekávané chybě při inicializaci.</p>
+                <div style="background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px; margin: 20px 0;">
+                    <code>${error.message}</code>
                 </div>
                 <button onclick="location.reload()" style="
-                    background: white;
-                    color: #ff6b6b;
-                    border: none;
-                    padding: 15px 30px;
-                    border-radius: 8px;
-                    font-size: 1.1em;
-                    font-weight: bold;
-                    cursor: pointer;
-                ">
-                    🔄 Obnovit stránku
-                </button>
+                    background: white; color: #ff6b6b; border: none;
+                    padding: 15px 30px; border-radius: 8px; font-weight: bold; cursor: pointer;
+                ">🔄 Obnovit stránku</button>
             </div>
         </div>
     `;
@@ -399,34 +317,4 @@ function showCriticalError(error) {
     document.body.innerHTML = errorHTML;
 }
 
-// Globální utility funkce pro debugging
-window.donuland = {
-    data: () => globalData || {},
-    config: () => CONFIG || {},
-    loadData: () => typeof dataManager !== 'undefined' ? dataManager.loadData() : console.error('dataManager not loaded'),
-    checkModules: () => {
-        const moduleCheck = checkRequiredModules();
-        console.log(`Načteno ${moduleCheck.loaded}/${moduleCheck.total} modulů`);
-        if (moduleCheck.missing.length > 0) {
-            console.warn('Chybí moduly:', moduleCheck.missing);
-        }
-        return moduleCheck;
-    },
-    restart: () => location.reload()
-};
-
-// Export verzí pro debugging
-console.log(`
-🍩 Donuland Management System
-============================
-Verze: 1.0.0
-Načteno: ${new Date().toLocaleString('cs-CZ')}
-Debug: ${CONFIG && CONFIG.DEBUG ? 'Zapnut' : 'Vypnut'}
-
-Dostupné funkce v konzoli:
-- donuland.loadData() - načtení dat
-- donuland.checkModules() - kontrola modulů
-- donuland.restart() - restart aplikace
-`);
-
-debug('🎉 Donuland Management System připraven k použití!');
+log('📜 App.js načten a připraven k inicializaci');

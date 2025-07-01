@@ -304,6 +304,7 @@ const weatherService = {
                     </div>
                     <div class="weather-detail">
                         <div class="weather-detail-value">${weather.humidity}%</div>
+                        <div class="weather-detail-label">Vlhkost</div>
                     </div>
                     <div class="weather-detail">
                         <div class="weather-detail-value">${Math.round(weather.windSpeed)} m/s</div>

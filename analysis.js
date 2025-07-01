@@ -56,6 +56,143 @@ const analysis = {
             const validEvents = globalData.historicalData
                 .filter(row => parseFloat(row[salesColumn] || 0) > 0);
 
+            const totalEvents = globalData.historicalData.length;
+            const validEventsCount = validEvents.length;
+            
+            const totalSales = validEvents.reduce((sum, row) => 
+                sum + parseFloat(row[salesColumn] || 0), 0
+            );
+            
+            const avgSalesPerEvent = validEventsCount > 0 ? totalSales / validEventsCount : 0;
+            const totalRevenue = totalSales * CONFIG.DONUT_PRICE;
+            const totalProfit = totalSales * (CONFIG.DONUT_PRICE - CONFIG.DONUT_COST);
+
+            // Nejlepší a nejhorší akce
+            const sortedEvents = validEvents
+                .map(row => parseFloat(row[salesColumn] || 0))
+                .sort((a, b) => b - a);
+            
+            const bestEvent = sortedEvents[0] || 0;
+            const worstEvent = sortedEvents[sortedEvents.length - 1] || 0;
+
+            // Průměrné hodnocení
+            const ratingsSum = validEvents.reduce((sum, row) => {
+                const rating = parseFloat(row[ratingColumn] || 0);
+                return sum + (rating > 0 ? rating : 0);
+            }, 0);
+            const ratingsCount = validEvents.filter(row => parseFloat(row[ratingColumn] || 0) > 0).length;
+            const avgRating = ratingsCount > 0 ? ratingsSum / ratingsCount : 0;
+
+            // Časové rozmezí dat
+            const dates = globalData.historicalData
+                .map(row => row[dateColumn])
+                .filter(date => date && date.trim())
+                .sort();
+
+            document.getElementById('overallStats').innerHTML = `
+                <div class="results-grid">
+                    <div class="result-item">
+                        <div class="result-value">${totalEvents}</div>
+                        <div class="result-label">📅 Celkem akcí v databázi</div>
+                    </div>
+                    <div class="result-item">
+                        <div class="result-value">${validEventsCount}</div>
+                        <div class="result-label">✅ Akcí s daty o prodeji</div>
+                    </div>
+                    <div class="result-item">
+                        <div class="result-value">${utils.formatNumber(totalSales)}</div>
+                        <div class="result-label">🍩 Celkem prodáno donutů</div>
+                    </div>
+                    <div class="result-item">
+                        <div class="result-value">${Math.round(avgSalesPerEvent)}</div>
+                        <div class="result-label">📊 Průměr donutů na akci</div>
+                    </div>
+                    <div class="result-item">
+                        <div class="result-value">${utils.formatCurrency(totalRevenue)}</div>
+                        <div class="result-label">💰 Celkový obrat</div>
+                    </div>
+                    <div class="result-item">
+                        <div class="result-value">${utils.formatCurrency(totalProfit)}</div>
+                        <div class="result-label">📈 Hrubý zisk</div>
+                    </div>
+                    <div class="result-item">
+                        <div class="result-value">${utils.formatNumber(bestEvent)}</div>
+                        <div class="result-label">🏆 Nejlepší akce</div>
+                    </div>
+                    <div class="result-item">
+                        <div class="result-value">${avgRating > 0 ? ui.createStarRating(avgRating) : 'N/A'}</div>
+                        <div class="result-label">⭐ Průměrné hodnocení</div>
+                    </div>
+                </div>
+                
+                ${dates.length > 0 ? `
+                <div style="margin-top: 20px; text-align: center; color: #666;">
+                    📈 Data od ${utils.formatDate(dates[0])} do ${utils.formatDate(dates[dates.length - 1])}
+                </div>
+                ` : ''}
+            `;
+
+        } catch (error) {
+            debugError('Chyba při zobrazování celkových statistik:', error);
+            ui.showError('overallStats', 'Chyba při výpočtu statistik', error.message);
+        }
+    },
+
+    // Nejúspěšnější akce
+    displayTopEvents() {
+        try {
+            const salesColumn = utils.findColumn(globalData.historicalData, ['realně prodáno', 'N']);
+            const nameColumn = utils.findColumn(globalData.historicalData, ['Název akce', 'D']);
+            const cityColumn = utils.findColumn(globalData.historicalData, ['Lokalita', 'C']);
+            const dateColumn = utils.findColumn(globalData.historicalData, ['Datum', 'B']);
+            const ratingColumn = utils.findColumn(globalData.historicalData, ['hodnocení akce 1-5', 'X']);
+            const categoryColumn = utils.findColumn(globalData.historicalData, ['kategorie', 'E']);
+
+            const validEvents = globalData.historicalData
+                .filter(row => parseFloat(row[salesColumn] || 0) > 0)
+                .map(row => ({
+                    name: (row[nameColumn] || 'Neznámá akce').substring(0, 50),
+                    city: (row[cityColumn] || 'Neznámé město').substring(0, 30),
+                    date: row[dateColumn] || '',
+                    sales: parseFloat(row[salesColumn] || 0),
+                    rating: parseFloat(row[ratingColumn] || 0),
+                    category: row[categoryColumn] || '',
+                    revenue: parseFloat(row[salesColumn] || 0) * CONFIG.DONUT_PRICE
+                }))
+                .sort((a, b) => b.sales - a.sales)
+                .slice(0, 10);
+
+            if (validEvents.length === 0) {
+                ui.showEmpty('topEvents', 'Žádné akce s validními daty', 'Zatím nejsou k dispozici data o prodeji');
+                return;
+            }
+
+            const eventsHtml = validEvents.map((event, index) => 
+                ui.createAnalysisCard(event, index, 'event')
+            ).join('');
+
+            document.getElementById('topEvents').innerHTML = `
+                <div style="max-height: 500px; overflow-y: auto;">
+                    ${eventsHtml}
+                </div>
+            `;
+
+        } catch (error) {
+            debugError('Chyba při zobrazování top akcí:', error);
+            ui.showError('topEvents', 'Chyba při analýze akcí', error.message);
+        }
+    },
+
+    // Nejlepší města
+    displayTopCities() {
+        try {
+            const salesColumn = utils.findColumn(globalData.historicalData, ['realně prodáno', 'N']);
+            const cityColumn = utils.findColumn(globalData.historicalData, ['Lokalita', 'C']);
+            const ratingColumn = utils.findColumn(globalData.historicalData, ['hodnocení akce 1-5', 'X']);
+
+            const validEvents = globalData.historicalData
+                .filter(row => parseFloat(row[salesColumn] || 0) > 0);
+
             // Seskupení podle měst
             const cityStats = {};
             validEvents.forEach(row => {
@@ -411,143 +548,4 @@ const analysis = {
             ui.showError('recentEvents', 'Chyba při načítání nedávných akcí', error.message);
         }
     }
-};.filter(row => {
-                const sales = parseFloat(row[salesColumn] || 0);
-                return sales > 0;
-            });
-
-            const totalEvents = globalData.historicalData.length;
-            const validEventsCount = validEvents.length;
-            
-            const totalSales = validEvents.reduce((sum, row) => 
-                sum + parseFloat(row[salesColumn] || 0), 0
-            );
-            
-            const avgSalesPerEvent = validEventsCount > 0 ? totalSales / validEventsCount : 0;
-            const totalRevenue = totalSales * CONFIG.DONUT_PRICE;
-            const totalProfit = totalSales * (CONFIG.DONUT_PRICE - CONFIG.DONUT_COST);
-
-            // Nejlepší a nejhorší akce
-            const sortedEvents = validEvents
-                .map(row => parseFloat(row[salesColumn] || 0))
-                .sort((a, b) => b - a);
-            
-            const bestEvent = sortedEvents[0] || 0;
-            const worstEvent = sortedEvents[sortedEvents.length - 1] || 0;
-
-            // Průměrné hodnocení
-            const ratingsSum = validEvents.reduce((sum, row) => {
-                const rating = parseFloat(row[ratingColumn] || 0);
-                return sum + (rating > 0 ? rating : 0);
-            }, 0);
-            const ratingsCount = validEvents.filter(row => parseFloat(row[ratingColumn] || 0) > 0).length;
-            const avgRating = ratingsCount > 0 ? ratingsSum / ratingsCount : 0;
-
-            // Časové rozmezí dat
-            const dates = globalData.historicalData
-                .map(row => row[dateColumn])
-                .filter(date => date && date.trim())
-                .sort();
-
-            document.getElementById('overallStats').innerHTML = `
-                <div class="results-grid">
-                    <div class="result-item">
-                        <div class="result-value">${totalEvents}</div>
-                        <div class="result-label">📅 Celkem akcí v databázi</div>
-                    </div>
-                    <div class="result-item">
-                        <div class="result-value">${validEventsCount}</div>
-                        <div class="result-label">✅ Akcí s daty o prodeji</div>
-                    </div>
-                    <div class="result-item">
-                        <div class="result-value">${utils.formatNumber(totalSales)}</div>
-                        <div class="result-label">🍩 Celkem prodáno donutů</div>
-                    </div>
-                    <div class="result-item">
-                        <div class="result-value">${Math.round(avgSalesPerEvent)}</div>
-                        <div class="result-label">📊 Průměr donutů na akci</div>
-                    </div>
-                    <div class="result-item">
-                        <div class="result-value">${utils.formatCurrency(totalRevenue)}</div>
-                        <div class="result-label">💰 Celkový obrat</div>
-                    </div>
-                    <div class="result-item">
-                        <div class="result-value">${utils.formatCurrency(totalProfit)}</div>
-                        <div class="result-label">📈 Hrubý zisk</div>
-                    </div>
-                    <div class="result-item">
-                        <div class="result-value">${utils.formatNumber(bestEvent)}</div>
-                        <div class="result-label">🏆 Nejlepší akce</div>
-                    </div>
-                    <div class="result-item">
-                        <div class="result-value">${avgRating > 0 ? ui.createStarRating(avgRating) : 'N/A'}</div>
-                        <div class="result-label">⭐ Průměrné hodnocení</div>
-                    </div>
-                </div>
-                
-                ${dates.length > 0 ? `
-                <div style="margin-top: 20px; text-align: center; color: #666;">
-                    📈 Data od ${utils.formatDate(dates[0])} do ${utils.formatDate(dates[dates.length - 1])}
-                </div>
-                ` : ''}
-            `;
-
-        } catch (error) {
-            debugError('Chyba při zobrazování celkových statistik:', error);
-            ui.showError('overallStats', 'Chyba při výpočtu statistik', error.message);
-        }
-    },
-
-    // Nejúspěšnější akce
-    displayTopEvents() {
-        try {
-            const salesColumn = utils.findColumn(globalData.historicalData, ['realně prodáno', 'N']);
-            const nameColumn = utils.findColumn(globalData.historicalData, ['Název akce', 'D']);
-            const cityColumn = utils.findColumn(globalData.historicalData, ['Lokalita', 'C']);
-            const dateColumn = utils.findColumn(globalData.historicalData, ['Datum', 'B']);
-            const ratingColumn = utils.findColumn(globalData.historicalData, ['hodnocení akce 1-5', 'X']);
-            const categoryColumn = utils.findColumn(globalData.historicalData, ['kategorie', 'E']);
-
-            const validEvents = globalData.historicalData
-                .filter(row => parseFloat(row[salesColumn] || 0) > 0)
-                .map(row => ({
-                    name: (row[nameColumn] || 'Neznámá akce').substring(0, 50),
-                    city: (row[cityColumn] || 'Neznámé město').substring(0, 30),
-                    date: row[dateColumn] || '',
-                    sales: parseFloat(row[salesColumn] || 0),
-                    rating: parseFloat(row[ratingColumn] || 0),
-                    category: row[categoryColumn] || '',
-                    revenue: parseFloat(row[salesColumn] || 0) * CONFIG.DONUT_PRICE
-                }))
-                .sort((a, b) => b.sales - a.sales)
-                .slice(0, 10);
-
-            if (validEvents.length === 0) {
-                ui.showEmpty('topEvents', 'Žádné akce s validními daty', 'Zatím nejsou k dispozici data o prodeji');
-                return;
-            }
-
-            const eventsHtml = validEvents.map((event, index) => 
-                ui.createAnalysisCard(event, index, 'event')
-            ).join('');
-
-            document.getElementById('topEvents').innerHTML = `
-                <div style="max-height: 500px; overflow-y: auto;">
-                    ${eventsHtml}
-                </div>
-            `;
-
-        } catch (error) {
-            debugError('Chyba při zobrazování top akcí:', error);
-            ui.showError('topEvents', 'Chyba při analýze akcí', error.message);
-        }
-    },
-
-    // Nejlepší města
-    displayTopCities() {
-        try {
-            const salesColumn = utils.findColumn(globalData.historicalData, ['realně prodáno', 'N']);
-            const cityColumn = utils.findColumn(globalData.historicalData, ['Lokalita', 'C']);
-            const ratingColumn = utils.findColumn(globalData.historicalData, ['hodnocení akce 1-5', 'X']);
-
-            const validEvents = globalData.historicalData
+};

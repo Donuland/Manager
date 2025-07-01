@@ -216,17 +216,12 @@ const settings = {
         }
 
         // Test Google Maps API (základní)
-        try {
-            const mapsKey = document.getElementById('mapsApiKey').value.trim();
-            if (!mapsKey) {
-                results.push('⚠️ Google Maps API: Není nastaven klíč');
-                allPassed = false;
-            } else {
-                results.push('ℹ️ Google Maps API: Klíč nastaven (test při výpočtu vzdálenosti)');
-            }
-        } catch (error) {
-            results.push(`❌ Google Maps API: ${error.message}`);
+        const mapsKey = document.getElementById('mapsApiKey').value.trim();
+        if (!mapsKey) {
+            results.push('⚠️ Google Maps API: Není nastaven klíč');
             allPassed = false;
+        } else {
+            results.push('ℹ️ Google Maps API: Klíč nastaven (test při výpočtu vzdálenosti)');
         }
 
         // Zobrazení výsledků

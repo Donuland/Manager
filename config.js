@@ -132,4 +132,4 @@ function debugError(...args) {
 
 function debugWarn(...args) {
     console.warn('[DONULAND WARNING]', ...args);
-}
+};

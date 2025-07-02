@@ -319,19 +319,20 @@ function showCriticalError(error) {
 
 log('📜 App.js načten a připraven k inicializaci');
 // ========================================
-// DONULAND - KROK 2: ZÁKLADNÍ NAČÍTÁNÍ DAT
-// Přidejte tento kód na konec app.js (nebo vytvořte nový soubor dataManager.js)
+// RYCHLÁ OPRAVA - PŘIDEJTE NA KONEC APP.JS
 // ========================================
 
-// Rozšíření globální funkce loadDataFromSheets
+// Vylepšená funkce loadDataFromSheets s lepším error handlingem
 window.loadDataFromSheets = async function(sheetsUrl) {
+    // Pokud není zadána URL, zkus najít v nastavení
     if (!sheetsUrl) {
         sheetsUrl = document.getElementById('googleSheetsUrl')?.value;
     }
     
+    // Pokud stále není URL, použij výchozí
     if (!sheetsUrl) {
-        showNotification('❌ Zadejte URL Google Sheets v nastavení', 'error');
-        return;
+        sheetsUrl = 'https://docs.google.com/spreadsheets/d/1LclCz9hb0hlb1D92OyVqk6Cbam7PRK6KgAzGgiGs6iE/edit?usp=sharing';
+        log('📋 Používám výchozí Google Sheets URL');
     }
     
     // Kontrola, zda již neprobíhá načítání
@@ -344,7 +345,7 @@ window.loadDataFromSheets = async function(sheetsUrl) {
     updateStatusIndicator('loading', 'Načítám data...');
     
     try {
-        log('📊 Začínám načítání dat z Google Sheets...');
+        log('📊 Začínám načítání dat z:', sheetsUrl);
         showNotification('🔄 Načítám data z Google Sheets...', 'info');
         
         // Extrakce Sheet ID z URL
@@ -359,11 +360,18 @@ window.loadDataFromSheets = async function(sheetsUrl) {
         const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=0`;
         log('🔗 CSV URL:', csvUrl);
         
-        // Pokus o načtení dat
-        const csvData = await fetchCSVData(csvUrl);
+        // Pokus o načtení dat s podrobnějším logováním
+        const csvData = await fetchCSVDataWithLogging(csvUrl);
+        
+        // Kontrola, zda data nejsou prázdná
+        if (!csvData || csvData.trim().length === 0) {
+            throw new Error('Google Sheets vrátil prázdná data. Zkontrolujte přístupová práva k tabulce.');
+        }
+        
+        log('📄 Načteno CSV dat (první 200 znaků):', csvData.substring(0, 200));
         
         // Parsování CSV dat
-        const parsedData = parseCSVData(csvData);
+        const parsedData = parseCSVDataSafely(csvData);
         
         // Uložení dat
         window.donulandApp.data.historicalData = parsedData;
@@ -384,124 +392,104 @@ window.loadDataFromSheets = async function(sheetsUrl) {
     } catch (error) {
         logError('❌ Chyba při načítání dat:', error);
         updateStatusIndicator('error', 'Chyba načítání');
-        showNotification(`❌ Chyba při načítání dat: ${error.message}`, 'error');
-        throw error;
+        showNotification(`❌ Chyba: ${error.message}`, 'error');
+        
+        // Pokus o načtení testovacích dat
+        loadTestData();
         
     } finally {
         window.donulandApp.data.isLoading = false;
     }
 };
 
-// Extrakce Sheet ID z Google Sheets URL
-function extractSheetId(url) {
-    const patterns = [
-        /\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/,
-        /spreadsheets\/d\/([a-zA-Z0-9-_]+)/
-    ];
+// Načtení CSV dat s podrobným logováním
+async function fetchCSVDataWithLogging(csvUrl) {
+    log('🌐 Pokouším se načíst CSV data z:', csvUrl);
     
-    for (const pattern of patterns) {
-        const match = url.match(pattern);
-        if (match) {
-            return match[1];
-        }
-    }
-    
-    return null;
-}
-
-// Načtení CSV dat s fallback mechanismy
-async function fetchCSVData(csvUrl) {
-    log('🌐 Pokouším se načíst CSV data...');
-    
-    // Pokus 1: Přímé volání (obvykle selže kvůli CORS)
+    // Pokus s CORS proxy
     try {
-        log('🔄 Pokus 1: Přímé volání...');
-        const response = await fetch(csvUrl);
-        if (response.ok) {
-            const data = await response.text();
-            log('✅ Přímé volání úspěšné');
-            return data;
-        }
-    } catch (error) {
-        log('⚠️ Přímé volání selhalo (CORS):', error.message);
-    }
-    
-    // Pokus 2: CORS proxy - allorigins.win
-    try {
-        log('🔄 Pokus 2: CORS proxy (allorigins.win)...');
+        log('🔄 Používám CORS proxy...');
         const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(csvUrl)}`;
+        log('🔗 Proxy URL:', proxyUrl);
+        
         const response = await fetch(proxyUrl);
+        log('📡 Response status:', response.status);
         
         if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
         
         const result = await response.json();
+        log('📦 Proxy response keys:', Object.keys(result));
+        
         if (result.contents) {
-            log('✅ CORS proxy úspěšný');
+            log('✅ Data úspěšně načtena přes proxy');
             return result.contents;
         } else {
-            throw new Error('Prázdný obsah z proxy');
+            throw new Error('Proxy vrátil prázdný obsah');
         }
-    } catch (error) {
-        log('⚠️ CORS proxy selhal:', error.message);
-    }
-    
-    // Pokus 3: Alternativní CORS proxy
-    try {
-        log('🔄 Pokus 3: Alternativní CORS proxy...');
-        const proxyUrl2 = `https://corsproxy.io/?${encodeURIComponent(csvUrl)}`;
-        const response = await fetch(proxyUrl2);
         
-        if (response.ok) {
-            const data = await response.text();
-            log('✅ Alternativní proxy úspěšný');
-            return data;
-        }
     } catch (error) {
-        log('⚠️ Alternativní proxy selhal:', error.message);
+        logError('❌ CORS proxy selhal:', error);
+        throw new Error(`Nepodařilo se načíst data z Google Sheets. Možné příčiny: 1) Tabulka není veřejně přístupná, 2) Neplatné URL, 3) Problém se sítí. Chyba: ${error.message}`);
     }
-    
-    // Všechny pokusy selhaly
-    throw new Error('Nepodařilo se načíst data ze všech dostupných zdrojů. Zkontrolujte přístupová práva k Google Sheets.');
 }
 
-// Jednoduché parsování CSV dat
-function parseCSVData(csvText) {
-    log('📝 Parsuji CSV data...');
+// Bezpečnější parsování CSV
+function parseCSVDataSafely(csvText) {
+    log('📝 Začínám parsování CSV...');
     
-    if (!csvText || csvText.trim().length === 0) {
+    if (!csvText || typeof csvText !== 'string') {
+        throw new Error('CSV data nejsou validní string');
+    }
+    
+    if (csvText.trim().length === 0) {
         throw new Error('CSV data jsou prázdná');
     }
     
     try {
         // Rozdělení na řádky
         const lines = csvText.split('\n').filter(line => line.trim().length > 0);
+        log(`📄 Počet řádků: ${lines.length}`);
+        
+        if (lines.length < 1) {
+            throw new Error('CSV neobsahuje žádné řádky');
+        }
         
         if (lines.length < 2) {
-            throw new Error('CSV musí obsahovat alespoň hlavičku a jeden řádek dat');
+            log('⚠️ CSV obsahuje pouze hlavičku, žádná data');
+            return [];
         }
         
         // Parsování hlavičky
-        const headers = parseCSVLine(lines[0]);
+        const headers = parseCSVLineSafely(lines[0]);
         log('📋 Hlavičky:', headers);
         
+        if (headers.length === 0) {
+            throw new Error('Hlavička CSV je prázdná');
+        }
+        
         const data = [];
+        let validRows = 0;
         
         // Parsování datových řádků
-        for (let i = 1; i < lines.length; i++) {
+        for (let i = 1; i < Math.min(lines.length, 1000); i++) { // Limit na prvních 1000 řádků
             try {
-                const values = parseCSVLine(lines[i]);
-                const row = {};
+                const values = parseCSVLineSafely(lines[i]);
                 
-                // Mapování hodnot na hlavičky
-                headers.forEach((header, index) => {
-                    row[header.trim()] = (values[index] || '').trim();
-                });
-                
-                // Přidání pouze neprázdných řádků
-                if (Object.values(row).some(value => value && value.length > 0)) {
-                    data.push(row);
+                if (values.length > 0) {
+                    const row = {};
+                    
+                    // Mapování hodnot na hlavičky
+                    headers.forEach((header, index) => {
+                        row[header.trim()] = (values[index] || '').trim();
+                    });
+                    
+                    // Přidání pouze řádků s nějakými daty
+                    if (Object.values(row).some(value => value && value.length > 0)) {
+                        data.push(row);
+                        validRows++;
+                    }
                 }
                 
             } catch (error) {
@@ -509,7 +497,12 @@ function parseCSVData(csvText) {
             }
         }
         
-        log(`✅ CSV úspěšně naparsováno: ${data.length} řádků`);
+        log(`✅ CSV úspěšně naparsováno: ${validRows} validních řádků`);
+        
+        if (data.length === 0) {
+            log('⚠️ Žádné validní data v CSV');
+        }
+        
         return data;
         
     } catch (error) {
@@ -518,8 +511,12 @@ function parseCSVData(csvText) {
     }
 }
 
-// Parsování jednotlivého řádku CSV
-function parseCSVLine(line) {
+// Bezpečnější parsování řádku CSV
+function parseCSVLineSafely(line) {
+    if (!line || typeof line !== 'string') {
+        return [];
+    }
+    
     const result = [];
     let current = '';
     let inQuotes = false;
@@ -538,144 +535,48 @@ function parseCSVLine(line) {
     }
     
     result.push(current.trim());
-    return result.map(value => value.replace(/^"|"$/g, '')); // Odstranění úvodních/koncových uvozovek
+    return result.map(value => value.replace(/^"|"$/g, ''));
 }
 
-// Aktualizace autocomplete dat
-function updateAutocompleteData(data) {
-    if (!data || data.length === 0) {
-        log('⚠️ Žádná data pro autocomplete');
-        return;
-    }
+// Načtení testovacích dat pro demonstraci
+function loadTestData() {
+    log('🧪 Načítám testovací data...');
     
-    try {
-        log('🔄 Aktualizuji autocomplete data...');
-        
-        // Hledání sloupců s názvy akcí a městy
-        const sampleRow = data[0];
-        const headers = Object.keys(sampleRow);
-        
-        // Možné názvy sloupců pro akce
-        const eventNameColumns = headers.filter(h => 
-            h.toLowerCase().includes('název') || 
-            h.toLowerCase().includes('akce') ||
-            h.toLowerCase().includes('event') ||
-            h === 'D'
-        );
-        
-        // Možné názvy sloupců pro města
-        const cityColumns = headers.filter(h => 
-            h.toLowerCase().includes('lokalita') || 
-            h.toLowerCase().includes('město') ||
-            h.toLowerCase().includes('city') ||
-            h === 'C'
-        );
-        
-        log('📋 Sloupce pro názvy akcí:', eventNameColumns);
-        log('📋 Sloupce pro města:', cityColumns);
-        
-        // Extrakce unikátních názvů akcí
-        if (eventNameColumns.length > 0) {
-            const eventNames = [...new Set(
-                data.map(row => row[eventNameColumns[0]])
-                    .filter(name => name && name.trim().length > 0)
-                    .map(name => name.trim())
-            )].sort();
-            
-            updateDatalist('eventNamesList', eventNames);
-            log(`✅ Aktualizováno ${eventNames.length} názvů akcí`);
+    const testData = [
+        {
+            'Datum': '2024-12-01',
+            'Lokalita': 'Praha',
+            'Název akce': 'Test ČokoFest Praha',
+            'kategorie': 'veletrh',
+            'realně prodáno': '150',
+            'návštěvnost': '800'
+        },
+        {
+            'Datum': '2024-12-15',
+            'Lokalita': 'Brno',
+            'Název akce': 'Test Food Festival Brno',
+            'kategorie': 'food festival',
+            'realně prodáno': '120',
+            'návštěvnost': '600'
+        },
+        {
+            'Datum': '2024-12-20',
+            'Lokalita': 'Ostrava',
+            'Název akce': 'Test Rodinný festival',
+            'kategorie': 'rodinný festival',
+            'realně prodáno': '80',
+            'návštěvnost': '400'
         }
-        
-        // Extrakce unikátních měst
-        if (cityColumns.length > 0) {
-            const cities = [...new Set(
-                data.map(row => row[cityColumns[0]])
-                    .filter(city => city && city.trim().length > 0)
-                    .map(city => city.trim())
-            )].sort();
-            
-            // Kombinace s existujícími městy
-            const existingCities = ['Praha', 'Brno', 'Ostrava', 'Plzeň', 'Liberec', 'Olomouc', 'České Budějovice', 'Hradec Králové', 'Ústí nad Labem', 'Pardubice'];
-            const allCities = [...new Set([...existingCities, ...cities])].sort();
-            
-            updateDatalist('citiesList', allCities);
-            log(`✅ Aktualizováno ${allCities.length} měst`);
-        }
-        
-    } catch (error) {
-        logError('❌ Chyba při aktualizaci autocomplete:', error);
-    }
+    ];
+    
+    window.donulandApp.data.historicalData = testData;
+    window.donulandApp.data.lastDataLoad = new Date();
+    
+    updateAutocompleteData(testData);
+    updateStatusIndicator('online', `${testData.length} testovacích záznamů`);
+    showNotification(`🧪 Načtena testovací data (${testData.length} záznamů)`, 'warning');
+    
+    log('✅ Testovací data načtena');
 }
 
-// Aktualizace datalist elementu
-function updateDatalist(datalistId, options) {
-    const datalist = document.getElementById(datalistId);
-    if (!datalist) {
-        log(`⚠️ Datalist ${datalistId} nenalezen`);
-        return;
-    }
-    
-    datalist.innerHTML = options
-        .map(option => `<option value="${escapeHtml(option)}">`)
-        .join('');
-}
-
-// Escape HTML pro bezpečnost
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-// Získání základních statistik dat
-window.getDataStats = function() {
-    const data = window.donulandApp.data.historicalData;
-    if (!data || data.length === 0) {
-        return {
-            totalEvents: 0,
-            eventsWithSales: 0,
-            totalSales: 0,
-            avgSalesPerEvent: 0
-        };
-    }
-    
-    // Hledání sloupce s prodeji
-    const sampleRow = data[0];
-    const headers = Object.keys(sampleRow);
-    
-    const salesColumns = headers.filter(h => 
-        h.toLowerCase().includes('prodáno') || 
-        h.toLowerCase().includes('prodej') ||
-        h.toLowerCase().includes('sales') ||
-        h === 'N'
-    );
-    
-    if (salesColumns.length === 0) {
-        log('⚠️ Nenalezen sloupec s prodeji');
-        return {
-            totalEvents: data.length,
-            eventsWithSales: 0,
-            totalSales: 0,
-            avgSalesPerEvent: 0
-        };
-    }
-    
-    const salesColumn = salesColumns[0];
-    const eventsWithSales = data.filter(row => {
-        const sales = parseFloat(row[salesColumn] || 0);
-        return sales > 0;
-    });
-    
-    const totalSales = eventsWithSales.reduce((sum, row) => {
-        return sum + parseFloat(row[salesColumn] || 0);
-    }, 0);
-    
-    return {
-        totalEvents: data.length,
-        eventsWithSales: eventsWithSales.length,
-        totalSales: Math.round(totalSales),
-        avgSalesPerEvent: eventsWithSales.length > 0 ? Math.round(totalSales / eventsWithSales.length) : 0
-    };
-};
-
-log('📊 Data manager připraven');
+log('🔧 Vylepšený data manager připraven');

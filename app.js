@@ -459,3 +459,273 @@ Object.assign(window.utils, {
 });
 
 log('🔗 Synchronizace dat a kompatibilita nastavena');
+    // ========================================
+// CHYBĚJÍCÍ FUNKCE - PŘIDEJTE NA KONEC APP.JS
+// ========================================
+
+// Extrakce Sheet ID z URL
+function extractSheetId(url) {
+    const patterns = [
+        /\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/,
+        /spreadsheets\/d\/([a-zA-Z0-9-_]+)/
+    ];
+    
+    for (const pattern of patterns) {
+        const match = url.match(pattern);
+        if (match) return match[1];
+    }
+    return null;
+}
+
+// Načtení CSV dat s podrobným logováním
+async function fetchCSVDataWithLogging(csvUrl) {
+    log('🌐 Pokouším se načíst CSV data z:', csvUrl);
+    
+    // Pokus s CORS proxy
+    try {
+        log('🔄 Používám CORS proxy...');
+        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(csvUrl)}`;
+        log('🔗 Proxy URL:', proxyUrl);
+        
+        const response = await fetch(proxyUrl);
+        log('📡 Response status:', response.status);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const result = await response.json();
+        log('📦 Proxy response keys:', Object.keys(result));
+        
+        if (result.contents) {
+            log('✅ Data úspěšně načtena přes proxy');
+            return result.contents;
+        } else {
+            throw new Error('Proxy vrátil prázdný obsah');
+        }
+        
+    } catch (error) {
+        logError('❌ CORS proxy selhal:', error);
+        throw new Error(`Nepodařilo se načíst data z Google Sheets. Možné příčiny: 1) Tabulka není veřejně přístupná, 2) Neplatné URL, 3) Problém se sítí. Chyba: ${error.message}`);
+    }
+}
+
+// Bezpečnější parsování CSV
+function parseCSVDataSafely(csvText) {
+    log('📝 Začínám parsování CSV...');
+    
+    if (!csvText || typeof csvText !== 'string') {
+        throw new Error('CSV data nejsou validní string');
+    }
+    
+    if (csvText.trim().length === 0) {
+        throw new Error('CSV data jsou prázdná');
+    }
+    
+    try {
+        // Rozdělení na řádky
+        const lines = csvText.split('\n').filter(line => line.trim().length > 0);
+        log(`📄 Počet řádků: ${lines.length}`);
+        
+        if (lines.length < 1) {
+            throw new Error('CSV neobsahuje žádné řádky');
+        }
+        
+        if (lines.length < 2) {
+            log('⚠️ CSV obsahuje pouze hlavičku, žádná data');
+            return [];
+        }
+        
+        // Parsování hlavičky
+        const headers = parseCSVLineSafely(lines[0]);
+        log('📋 Hlavičky:', headers);
+        
+        if (headers.length === 0) {
+            throw new Error('Hlavička CSV je prázdná');
+        }
+        
+        const data = [];
+        let validRows = 0;
+        
+        // Parsování datových řádků
+        for (let i = 1; i < Math.min(lines.length, 1000); i++) { // Limit na prvních 1000 řádků
+            try {
+                const values = parseCSVLineSafely(lines[i]);
+                
+                if (values.length > 0) {
+                    const row = {};
+                    
+                    // Mapování hodnot na hlavičky
+                    headers.forEach((header, index) => {
+                        row[header.trim()] = (values[index] || '').trim();
+                    });
+                    
+                    // Přidání pouze řádků s nějakými daty
+                    if (Object.values(row).some(value => value && value.length > 0)) {
+                        data.push(row);
+                        validRows++;
+                    }
+                }
+                
+            } catch (error) {
+                log(`⚠️ Chyba při parsování řádku ${i + 1}:`, error.message);
+            }
+        }
+        
+        log(`✅ CSV úspěšně naparsováno: ${validRows} validních řádků`);
+        
+        if (data.length === 0) {
+            log('⚠️ Žádné validní data v CSV');
+        }
+        
+        return data;
+        
+    } catch (error) {
+        logError('❌ Chyba při parsování CSV:', error);
+        throw new Error(`Chyba při parsování CSV dat: ${error.message}`);
+    }
+}
+
+// Bezpečnější parsování řádku CSV
+function parseCSVLineSafely(line) {
+    if (!line || typeof line !== 'string') {
+        return [];
+    }
+    
+    const result = [];
+    let current = '';
+    let inQuotes = false;
+    
+    for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        
+        if (char === '"') {
+            inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+            result.push(current.trim());
+            current = '';
+        } else {
+            current += char;
+        }
+    }
+    
+    result.push(current.trim());
+    return result.map(value => value.replace(/^"|"$/g, ''));
+}
+
+// Aktualizace datalist elementu
+function updateDatalist(datalistId, options) {
+    const datalist = document.getElementById(datalistId);
+    if (!datalist) {
+        log(`⚠️ Datalist ${datalistId} nenalezen`);
+        return;
+    }
+    
+    datalist.innerHTML = options
+        .map(option => `<option value="${escapeHtml(option)}">`)
+        .join('');
+}
+
+// Escape HTML pro bezpečnost
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Aktualizace status indikátoru
+function updateStatusIndicator(status, message) {
+    const indicator = document.getElementById('statusIndicator');
+    if (!indicator) return;
+    
+    // Odstranění starých tříd
+    indicator.classList.remove('online', 'error', 'loading');
+    
+    // Přidání nové třídy
+    if (status !== 'offline') {
+        indicator.classList.add(status);
+    }
+    
+    // Aktualizace textu
+    const textSpan = indicator.querySelector('span:last-child');
+    if (textSpan) {
+        textSpan.textContent = message;
+    }
+    
+    log(`📊 Status: ${status} - ${message}`);
+}
+
+// Zobrazení notifikace
+function showNotification(message, type = 'info') {
+    log(`📢 Notifikace [${type}]: ${message}`);
+    
+    const container = document.getElementById('notificationContainer');
+    if (!container) {
+        // Fallback na console pokud není kontejner
+        console.log(`[${type.toUpperCase()}] ${message}`);
+        return;
+    }
+    
+    // Odstranění existujících notifikací
+    container.innerHTML = '';
+    
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    
+    const icons = {
+        'success': '✅',
+        'error': '❌',
+        'warning': '⚠️',
+        'info': 'ℹ️'
+    };
+    
+    notification.innerHTML = `
+        <div class="notification-content">
+            <span class="notification-icon">${icons[type] || 'ℹ️'}</span>
+            <span class="notification-text">${message}</span>
+            <span class="notification-close" onclick="this.parentElement.parentElement.remove()">✕</span>
+        </div>
+    `;
+    
+    container.appendChild(notification);
+    
+    // Animace zobrazení
+    setTimeout(() => notification.classList.add('show'), 100);
+    
+    // Auto odstranění po 5 sekundách
+    setTimeout(() => {
+        if (notification.parentElement) {
+            notification.classList.remove('show');
+            setTimeout(() => notification.remove(), 300);
+        }
+    }, 5000);
+}
+
+// Zobrazení kritické chyby
+function showCriticalError(error) {
+    const errorHTML = `
+        <div style="
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(135deg, #ff6b6b, #ee5a52);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 10000; color: white; font-family: sans-serif;
+        ">
+            <div style="text-align: center; max-width: 500px; padding: 40px;">
+                <div style="font-size: 4em; margin-bottom: 20px;">💥</div>
+                <h1>Kritická chyba aplikace</h1>
+                <p style="margin: 20px 0;">Došlo k neočekávané chybě při inicializaci.</p>
+                <div style="background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px; margin: 20px 0;">
+                    <code>${error.message}</code>
+                </div>
+                <button onclick="location.reload()" style="
+                    background: white; color: #ff6b6b; border: none;
+                    padding: 15px 30px; border-radius: 8px; font-weight: bold; cursor: pointer;
+                ">🔄 Obnovit stránku</button>
+            </div>
+        </div>
+    `;
+    
+    document.body.innerHTML = errorHTML;
+}
+
+log('🔧 Všechny potřebné funkce načteny');

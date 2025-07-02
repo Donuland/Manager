@@ -1,6 +1,6 @@
 // ========================================
-// DONULAND MANAGEMENT SYSTEM - NAVIGATION
-// Navigační systém aplikace
+// DONULAND MANAGEMENT SYSTEM - OPRAVENÁ NAVIGACE
+// Navigační systém s opravenými funkcemi
 // ========================================
 
 const navigation = {
@@ -39,7 +39,7 @@ const navigation = {
         // Načtení dat pro konkrétní sekci
         this.loadSectionData(sectionId);
         
-        // Aktualizace URL hash (volitelné)
+        // Aktualizace URL hash
         window.location.hash = sectionId;
     },
 
@@ -47,37 +47,35 @@ const navigation = {
     loadSectionData(sectionId) {
         switch(sectionId) {
             case 'prediction':
-                // Predikce - žádné speciální načítání
                 this.initializePredictionSection();
                 break;
                 
             case 'analysis':
-                // Analýza - načtení dat pokud jsou k dispozici
-                if (globalData.historicalData.length > 0) {
-                    analysis.loadAnalysisData();
-                } else {
-                    ui.showLoading('overallStats', 'Načítání dat...');
-                    // Pokus o automatické načtení dat
-                    dataManager.loadData().then(() => {
+                if (window.donulandApp.data.historicalData.length > 0) {
+                    if (typeof analysis !== 'undefined') {
                         analysis.loadAnalysisData();
-                    }).catch(() => {
-                        analysis.loadAnalysisData(); // Zobrazí chybovou zprávu
+                    }
+                } else {
+                    this.showLoadingForSection('analysis');
+                    this.autoLoadDataAndThen(() => {
+                        if (typeof analysis !== 'undefined') {
+                            analysis.loadAnalysisData();
+                        }
                     });
                 }
                 break;
                 
             case 'calendar':
-                // Kalendář - načtení dat pokud jsou k dispozici
-                if (globalData.historicalData.length > 0) {
-                    analysis.loadCalendarData();
-                } else {
-                    ui.showLoading('upcomingEvents', 'Načítání dat...');
-                    ui.showLoading('recentEvents', 'Načítání dat...');
-                    // Pokus o automatické načtení dat
-                    dataManager.loadData().then(() => {
+                if (window.donulandApp.data.historicalData.length > 0) {
+                    if (typeof analysis !== 'undefined') {
                         analysis.loadCalendarData();
-                    }).catch(() => {
-                        analysis.loadCalendarData(); // Zobrazí chybovou zprávu
+                    }
+                } else {
+                    this.showLoadingForSection('calendar');
+                    this.autoLoadDataAndThen(() => {
+                        if (typeof analysis !== 'undefined') {
+                            analysis.loadCalendarData();
+                        }
                     });
                 }
                 break;
@@ -91,16 +89,44 @@ const navigation = {
         }
     },
 
+    // Zobrazení loading stavu pro sekci
+    showLoadingForSection(sectionId) {
+        const loadingElements = {
+            'analysis': ['overallStats', 'topEvents', 'topCities', 'categoryAnalysis'],
+            'calendar': ['upcomingEvents', 'recentEvents']
+        };
+
+        const elements = loadingElements[sectionId] || [];
+        elements.forEach(elementId => {
+            if (typeof ui !== 'undefined') {
+                ui.showLoading(elementId, 'Načítám data...');
+            }
+        });
+    },
+
+    // Automatické načtení dat a poté spuštění callbacku
+    autoLoadDataAndThen(callback) {
+        if (typeof loadDataFromSheets !== 'undefined') {
+            loadDataFromSheets()
+                .then(() => {
+                    if (callback) callback();
+                })
+                .catch((error) => {
+                    debugError('Chyba při automatickém načítání dat:', error);
+                    if (callback) callback(); // Spustíme callback i při chybě
+                });
+        }
+    },
+
     // Inicializace sekce predikce
     initializePredictionSection() {
-        // Nastavení výchozích hodnot pokud nejsou nastaveny
         this.setDefaultFormValues();
         
         // Kontrola, zda máme data pro autocomplete
-        if (globalData.historicalData.length === 0) {
+        if (window.donulandApp.data.historicalData.length === 0) {
             debug('🔄 Automaticky načítám data pro autocomplete...');
-            dataManager.loadData().catch(error => {
-                debugWarn('Nepodařilo se načíst data pro autocomplete:', error);
+            this.autoLoadDataAndThen(() => {
+                debug('✅ Data načtena pro autocomplete');
             });
         }
     },
@@ -123,7 +149,7 @@ const navigation = {
         // Nastavení výchozí ceny donutu pokud není nastavena
         const priceInput = document.getElementById('donutPrice');
         if (priceInput && !priceInput.value) {
-            priceInput.value = CONFIG.DONUT_PRICE;
+            priceInput.value = window.donulandApp.config.DONUT_PRICE;
         }
 
         // Nastavení výchozí délky akce
@@ -145,7 +171,7 @@ const navigation = {
             const element = document.getElementById(elementId);
             if (element) {
                 // Debounced funkce pro automatické ukládání
-                const debouncedSave = utils.debounce(() => {
+                const debouncedSave = this.debounce(() => {
                     this.saveFormData();
                 }, 1000);
 
@@ -159,20 +185,20 @@ const navigation = {
     saveFormData() {
         try {
             const formData = {
-                eventName: document.getElementById('eventName').value,
-                eventCategory: document.getElementById('eventCategory').value,
-                eventCity: document.getElementById('eventCity').value,
-                eventDate: document.getElementById('eventDate').value,
-                expectedVisitors: document.getElementById('expectedVisitors').value,
-                eventDuration: document.getElementById('eventDuration').value,
-                competition: document.getElementById('competition').value,
-                businessModel: document.getElementById('businessModel').value,
-                rentType: document.getElementById('rentType').value,
-                donutPrice: document.getElementById('donutPrice').value,
+                eventName: document.getElementById('eventName')?.value || '',
+                eventCategory: document.getElementById('eventCategory')?.value || '',
+                eventCity: document.getElementById('eventCity')?.value || '',
+                eventDate: document.getElementById('eventDate')?.value || '',
+                expectedVisitors: document.getElementById('expectedVisitors')?.value || '',
+                eventDuration: document.getElementById('eventDuration')?.value || '',
+                competition: document.getElementById('competition')?.value || '',
+                businessModel: document.getElementById('businessModel')?.value || '',
+                rentType: document.getElementById('rentType')?.value || '',
+                donutPrice: document.getElementById('donutPrice')?.value || '',
                 timestamp: Date.now()
             };
 
-            utils.setWithTTL('donuland_form_data', formData, 24 * 60 * 60 * 1000); // 24 hodin
+            this.setWithTTL('donuland_form_data', formData, 24 * 60 * 60 * 1000); // 24 hodin
             debug('💾 Data formuláře automaticky uložena');
 
         } catch (error) {
@@ -183,7 +209,7 @@ const navigation = {
     // Načtení dat formuláře z localStorage
     loadFormData() {
         try {
-            const formData = utils.getWithTTL('donuland_form_data');
+            const formData = this.getWithTTL('donuland_form_data');
             if (!formData) return;
 
             // Obnovení hodnot pokud jsou elementy prázdné
@@ -231,13 +257,17 @@ const navigation = {
                     case 'r':
                         // Ctrl+R pro refresh dat
                         event.preventDefault();
-                        dataManager.refreshData();
+                        if (typeof loadDataFromSheets !== 'undefined') {
+                            loadDataFromSheets();
+                        }
                         break;
                     case 's':
                         // Ctrl+S pro uložení predikce
                         event.preventDefault();
                         if (document.getElementById('prediction').classList.contains('active')) {
-                            predictor.savePrediction();
+                            if (typeof predictor !== 'undefined' && predictor.savePrediction) {
+                                predictor.savePrediction();
+                            }
                         }
                         break;
                 }
@@ -314,28 +344,82 @@ const navigation = {
         }
     },
 
+    // Utility funkce - debounce
+    debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    },
+
+    // Storage funkce pro localStorage s TTL
+    setWithTTL(key, value, ttl) {
+        try {
+            const item = {
+                value: value,
+                expiry: new Date().getTime() + ttl
+            };
+            localStorage.setItem(key, JSON.stringify(item));
+        } catch (error) {
+            debugWarn('Chyba při ukládání do localStorage:', error);
+        }
+    },
+
+    getWithTTL(key) {
+        try {
+            const itemStr = localStorage.getItem(key);
+            if (!itemStr) return null;
+            
+            const item = JSON.parse(itemStr);
+            const now = new Date().getTime();
+            
+            if (now > item.expiry) {
+                localStorage.removeItem(key);
+                return null;
+            }
+            
+            return item.value;
+        } catch (error) {
+            debugWarn('Chyba při čtení z localStorage:', error);
+            return null;
+        }
+    },
+
     // Inicializace navigačního systému
     init() {
         debug('🧭 Inicializuji navigační systém...');
         
-        // Nastavení výchozích hodnot
-        this.setDefaultFormValues();
-        
-        // Načtení uložených dat formuláře
-        this.loadFormData();
-        
-        // Nastavení auto-save
-        this.setupFormAutoSave();
-        
-        // Klávesové zkratky
-        this.setupKeyboardShortcuts();
-        
-        // Hash navigace
-        this.setupHashNavigation();
-        
-        // Mobile menu
-        this.setupMobileMenu();
-        
-        debug('✅ Navigační systém inicializován');
+        try {
+            // Nastavení výchozích hodnot
+            this.setDefaultFormValues();
+            
+            // Načtení uložených dat formuláře
+            this.loadFormData();
+            
+            // Nastavení auto-save
+            this.setupFormAutoSave();
+            
+            // Klávesové zkratky
+            this.setupKeyboardShortcuts();
+            
+            // Hash navigace
+            this.setupHashNavigation();
+            
+            // Mobile menu
+            this.setupMobileMenu();
+            
+            // Nastavení globální funkce showSection pro kompatibilitu
+            window.showSection = (sectionId) => this.showSection(sectionId);
+            
+            debug('✅ Navigační systém inicializován');
+            
+        } catch (error) {
+            debugError('Chyba při inicializaci navigačního systému:', error);
+        }
     }
 };

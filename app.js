@@ -1,6 +1,6 @@
 // ========================================
-// DONULAND MANAGEMENT SYSTEM - OPRAVENÝ APP.JS
-// Hlavní aplikační soubor s opravenými funkcemi
+// DONULAND MANAGEMENT SYSTEM - FINÁLNÍ OPRAVA
+// Kompletně opravený aplikační soubor
 // ========================================
 
 // Globální stav aplikace
@@ -54,12 +54,11 @@ function initializeApp() {
         setDefaultValues();
         initNavigation();
         
-        // Inicializace navigačního systému
+        // Inicializace ostatních modulů
         if (typeof navigation !== 'undefined') {
             navigation.init();
         }
         
-        // Načtení uložených nastavení
         if (typeof settings !== 'undefined') {
             settings.loadSettings();
         }
@@ -181,7 +180,6 @@ function initNavigation() {
             }
         });
         
-        // Načtení dat pro konkrétní sekci
         loadSectionData(sectionId);
     };
 }
@@ -227,7 +225,166 @@ function loadSectionData(sectionId) {
 }
 
 // ========================================
-// NAČÍTÁNÍ DAT Z GOOGLE SHEETS - OPRAVENÁ VERZE
+// RFC 4180 COMPLIANT CSV PARSER
+// ========================================
+
+/**
+ * Pokročilý CSV parser podle RFC 4180 standardu
+ * Správně zpracovává uvozovky, čárky uvnitř hodnot, nové řádky
+ */
+function parseCSVContent(csvText) {
+    log('📝 Spouštím RFC 4180 CSV parser...');
+    
+    if (!csvText || typeof csvText !== 'string') {
+        throw new Error('CSV obsah není validní string');
+    }
+    
+    const result = [];
+    const lines = [];
+    let current = '';
+    let inQuotes = false;
+    let i = 0;
+    
+    // Nejdříve rozdělíme text na řádky, respektujeme uvozovky
+    while (i < csvText.length) {
+        const char = csvText[i];
+        const nextChar = csvText[i + 1];
+        
+        if (char === '"') {
+            if (inQuotes && nextChar === '"') {
+                // Escaped quote ""
+                current += '"';
+                i += 2;
+                continue;
+            } else {
+                inQuotes = !inQuotes;
+            }
+        } else if ((char === '\n' || char === '\r') && !inQuotes) {
+            // Konec řádku mimo uvozovky
+            if (current.trim()) {
+                lines.push(current.trim());
+            }
+            current = '';
+            
+            // Přeskočíme \r\n kombinaci
+            if (char === '\r' && nextChar === '\n') {
+                i++;
+            }
+            i++;
+            continue;
+        } else {
+            current += char;
+        }
+        
+        i++;
+    }
+    
+    // Přidáme poslední řádek
+    if (current.trim()) {
+        lines.push(current.trim());
+    }
+    
+    log(`📄 Nalezeno ${lines.length} řádků v CSV`);
+    
+    if (lines.length === 0) {
+        throw new Error('CSV neobsahuje žádné řádky');
+    }
+    
+    // Parsování hlavičky
+    const headers = parseCSVRow(lines[0]);
+    log(`📋 Hlavičky (${headers.length}):`, headers.slice(0, 10));
+    
+    if (headers.length === 0) {
+        throw new Error('Hlavička CSV je prázdná');
+    }
+    
+    // Parsování datových řádků
+    let validRows = 0;
+    for (let lineIndex = 1; lineIndex < lines.length; lineIndex++) {
+        try {
+            const values = parseCSVRow(lines[lineIndex]);
+            
+            if (values.length > 0) {
+                const row = {};
+                let hasData = false;
+                
+                // Mapování hodnot na hlavičky
+                for (let colIndex = 0; colIndex < headers.length; colIndex++) {
+                    const header = headers[colIndex].trim();
+                    const value = (values[colIndex] || '').trim();
+                    row[header] = value;
+                    
+                    if (value && value.length > 0) {
+                        hasData = true;
+                    }
+                }
+                
+                // Přidáme pouze řádky s nějakými daty
+                if (hasData) {
+                    result.push(row);
+                    validRows++;
+                }
+            }
+            
+        } catch (error) {
+            log(`⚠️ Chyba na řádku ${lineIndex + 1}: ${error.message}`);
+        }
+    }
+    
+    log(`✅ RFC 4180 CSV parser dokončen: ${validRows} validních řádků`);
+    
+    if (result.length === 0) {
+        throw new Error('CSV neobsahuje žádná validní data');
+    }
+    
+    return result;
+}
+
+/**
+ * Parsování jednotlivého řádku CSV podle RFC 4180
+ */
+function parseCSVRow(line) {
+    if (!line || typeof line !== 'string') {
+        return [];
+    }
+    
+    const result = [];
+    let current = '';
+    let inQuotes = false;
+    let i = 0;
+    
+    while (i < line.length) {
+        const char = line[i];
+        const nextChar = line[i + 1];
+        
+        if (char === '"') {
+            if (inQuotes && nextChar === '"') {
+                // Escaped quote ""
+                current += '"';
+                i += 2;
+                continue;
+            } else {
+                inQuotes = !inQuotes;
+            }
+        } else if (char === ',' && !inQuotes) {
+            // Konec pole
+            result.push(current);
+            current = '';
+        } else {
+            current += char;
+        }
+        
+        i++;
+    }
+    
+    // Přidáme poslední pole
+    result.push(current);
+    
+    return result;
+}
+
+// ========================================
+// VYLEPŠENÉ NAČÍTÁNÍ DAT Z GOOGLE SHEETS
 // ========================================
 
 window.loadDataFromSheets = async function(sheetsUrl) {
@@ -259,11 +416,7 @@ window.loadDataFromSheets = async function(sheetsUrl) {
         
         log('📋 Sheet ID:', sheetId);
         
-        // Použití správného CSV exportu s gid=0
-        const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=0`;
-        log('🔗 CSV URL:', csvUrl);
-        
-        const csvData = await fetchCSVData(csvUrl);
+        const csvData = await fetchCSVWithMultipleProxies(sheetId);
         
         if (!csvData || csvData.trim().length === 0) {
             throw new Error('Google Sheets vrátil prázdná data. Zkontrolujte přístupová práva k tabulce.');
@@ -271,12 +424,14 @@ window.loadDataFromSheets = async function(sheetsUrl) {
         
         log('📄 Načteno CSV dat (první 200 znaků):', csvData.substring(0, 200));
         
-        const parsedData = parseCSVData(csvData);
+        // Použití nového RFC 4180 parseru
+        const parsedData = parseCSVContent(csvData);
         
         // Synchronizace dat do všech globálních objektů
         window.donulandApp.data.historicalData = parsedData;
         window.donulandApp.data.lastDataLoad = new Date();
         
+        // Kompatibilita se starými moduly
         if (typeof globalData !== 'undefined') {
             globalData.historicalData = parsedData;
             globalData.lastDataLoad = new Date();
@@ -298,6 +453,18 @@ window.loadDataFromSheets = async function(sheetsUrl) {
         updateStatusIndicator('online', `${count} záznamů`);
         showNotification(`✅ Úspěšně načteno ${count} záznamů!`, 'success');
         
+        // Logování struktury dat pro diagnostiku
+        if (parsedData.length > 0) {
+            const sampleRow = parsedData[0];
+            const headers = Object.keys(sampleRow);
+            log('📊 Struktura dat:', {
+                pocetRadku: parsedData.length,
+                pocetSloupcu: headers.length,
+                sloupce: headers.slice(0, 15), // Prvních 15 sloupců
+                vzoroveData: sampleRow
+            });
+        }
+        
         log(`✅ Data úspěšně načtena: ${count} záznamů`);
         
         return parsedData;
@@ -307,6 +474,8 @@ window.loadDataFromSheets = async function(sheetsUrl) {
         updateStatusIndicator('error', 'Chyba načítání');
         showNotification(`❌ Chyba: ${error.message}`, 'error');
         
+        throw error;
+        
     } finally {
         window.donulandApp.data.isLoading = false;
         if (typeof globalData !== 'undefined') {
@@ -314,6 +483,77 @@ window.loadDataFromSheets = async function(sheetsUrl) {
         }
     }
 };
+
+// Vylepšené načítání CSV s více proxy službami
+async function fetchCSVWithMultipleProxies(sheetId) {
+    const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=0`;
+    
+    // Seznam proxy služeb v pořadí podle spolehlivosti
+    const proxies = [
+        {
+            name: 'AllOrigins',
+            url: `https://api.allorigins.win/get?url=${encodeURIComponent(csvUrl)}`,
+            parseResponse: (response) => response.json().then(data => data.contents)
+        },
+        {
+            name: 'CORS Anywhere',
+            url: `https://cors-anywhere.herokuapp.com/${csvUrl}`,
+            parseResponse: (response) => response.text()
+        },
+        {
+            name: 'ThingProxy',
+            url: `https://thingproxy.freeboard.io/fetch/${csvUrl}`,
+            parseResponse: (response) => response.text()
+        },
+        {
+            name: 'Direct (no proxy)',
+            url: csvUrl,
+            parseResponse: (response) => response.text()
+        }
+    ];
+    
+    for (let i = 0; i < proxies.length; i++) {
+        const proxy = proxies[i];
+        
+        try {
+            log(`🔄 Zkouším ${proxy.name} (${i + 1}/${proxies.length})...`);
+            
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+            
+            const response = await fetch(proxy.url, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'text/csv, text/plain, */*',
+                    'User-Agent': 'Mozilla/5.0 (compatible; DonulandApp/1.0)'
+                },
+                signal: controller.signal
+            });
+            
+            clearTimeout(timeoutId);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const csvText = await proxy.parseResponse(response);
+            
+            if (csvText && csvText.trim().length > 0) {
+                log(`✅ ${proxy.name} úspěšně načetl data (${csvText.length} znaků)`);
+                return csvText;
+            } else {
+                throw new Error('Prázdný response');
+            }
+            
+        } catch (error) {
+            logError(`❌ ${proxy.name} selhal:`, error.message);
+            
+            if (i === proxies.length - 1) {
+                throw new Error(`Všechny proxy služby selhaly. Posledná chyba: ${error.message}. Zkontrolujte: 1) Že je Google Sheets veřejně přístupný, 2) Správnost URL, 3) Síťové připojení.`);
+            }
+        }
+    }
+}
 
 // Extrakce Sheet ID z URL
 function extractSheetId(url) {
@@ -329,172 +569,6 @@ function extractSheetId(url) {
     return null;
 }
 
-// Načtení CSV dat s lepším error handlingem
-async function fetchCSVData(csvUrl) {
-    log('🌐 Načítám CSV data z:', csvUrl);
-    
-    // Zkusíme několik různých proxy služeb
-    const proxies = [
-        `https://api.allorigins.win/get?url=${encodeURIComponent(csvUrl)}`,
-        `https://cors-anywhere.herokuapp.com/${csvUrl}`,
-        csvUrl // Přímé volání (pokud CORS není problém)
-    ];
-    
-    for (let i = 0; i < proxies.length; i++) {
-        try {
-            log(`🔄 Zkouším proxy ${i + 1}/${proxies.length}:`, proxies[i]);
-            
-            const response = await fetch(proxies[i], {
-                method: 'GET',
-                headers: {
-                    'Accept': 'text/csv, text/plain, */*'
-                }
-            });
-            
-            log('📡 Response status:', response.status);
-            
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-            
-            let csvText;
-            if (i === 0) { // allorigins proxy
-                const result = await response.json();
-                csvText = result.contents;
-            } else {
-                csvText = await response.text();
-            }
-            
-            if (csvText && csvText.trim().length > 0) {
-                log('✅ Data úspěšně načtena');
-                return csvText;
-            } else {
-                throw new Error('Prázdný response');
-            }
-            
-        } catch (error) {
-            logError(`❌ Proxy ${i + 1} selhala:`, error.message);
-            if (i === proxies.length - 1) {
-                throw new Error(`Nepodařilo se načíst data z Google Sheets. Zkuste: 1) Ověřit že je tabulka veřejně přístupná, 2) Zkontrolovat URL, 3) Zkusit později. Poslední chyba: ${error.message}`);
-            }
-        }
-    }
-}
-
-// Vylepšené parsování CSV
-function parseCSVData(csvText) {
-    log('📝 Parsování CSV...');
-    
-    if (!csvText || typeof csvText !== 'string' || csvText.trim().length === 0) {
-        throw new Error('CSV data nejsou validní');
-    }
-    
-    try {
-        // Rozdělení na řádky a vyčištění
-        const lines = csvText.split(/\r?\n/).filter(line => line.trim().length > 0);
-        log(`📄 Počet řádků: ${lines.length}`);
-        
-        if (lines.length < 2) {
-            throw new Error('CSV musí obsahovat alespoň hlavičku a jeden řádek dat');
-        }
-        
-        // Parsování hlavičky
-        const headers = parseCSVLine(lines[0]);
-        log('📋 Hlavičky:', headers.slice(0, 10)); // Zobrazíme prvních 10
-        
-        if (headers.length === 0) {
-            throw new Error('Hlavička CSV je prázdná');
-        }
-        
-        const data = [];
-        let validRows = 0;
-        
-        // Parsování datových řádků
-        for (let i = 1; i < Math.min(lines.length, 1000); i++) {
-            try {
-                const values = parseCSVLine(lines[i]);
-                
-                if (values.length > 0) {
-                    const row = {};
-                    
-                    headers.forEach((header, index) => {
-                        row[header.trim()] = (values[index] || '').trim();
-                    });
-                    
-                    // Přidání pouze řádků s nějakými daty
-                    if (Object.values(row).some(value => value && value.length > 0)) {
-                        data.push(row);
-                        validRows++;
-                    }
-                }
-                
-            } catch (error) {
-                log(`⚠️ Chyba při parsování řádku ${i + 1}:`, error.message);
-            }
-        }
-        
-        log(`✅ CSV úspěšně naparsováno: ${validRows} validních řádků`);
-        
-        // Kontrola klíčových sloupců
-        const sampleRow = data[0];
-        if (sampleRow) {
-            const hasDateColumn = headers.some(h => h.toLowerCase().includes('datum') || h === 'B');
-            const hasNameColumn = headers.some(h => h.toLowerCase().includes('název') || h === 'D');
-            const hasSalesColumn = headers.some(h => h.toLowerCase().includes('prodán') || h === 'N');
-            
-            log('📊 Detekované sloupce:', {
-                datum: hasDateColumn,
-                nazev: hasNameColumn,
-                prodej: hasSalesColumn
-            });
-        }
-        
-        return data;
-        
-    } catch (error) {
-        logError('❌ Chyba při parsování CSV:', error);
-        throw new Error(`Chyba při parsování CSV dat: ${error.message}`);
-    }
-}
-
-// Vylepšené parsování řádku CSV
-function parseCSVLine(line) {
-    if (!line || typeof line !== 'string') {
-        return [];
-    }
-    
-    const result = [];
-    let current = '';
-    let inQuotes = false;
-    let i = 0;
-    
-    while (i < line.length) {
-        const char = line[i];
-        const nextChar = line[i + 1];
-        
-        if (char === '"') {
-            if (inQuotes && nextChar === '"') {
-                // Escaped quote
-                current += '"';
-                i += 2;
-                continue;
-            } else {
-                inQuotes = !inQuotes;
-            }
-        } else if (char === ',' && !inQuotes) {
-            result.push(current.trim());
-            current = '';
-        } else {
-            current += char;
-        }
-        
-        i++;
-    }
-    
-    result.push(current.trim());
-    return result.map(value => value.replace(/^"|"$/g, ''));
-}
-
 // Aktualizace autocomplete dat
 function updateAutocompleteData(data) {
     if (!data || data.length === 0) {
@@ -508,22 +582,31 @@ function updateAutocompleteData(data) {
         const sampleRow = data[0];
         const headers = Object.keys(sampleRow);
         
-        // Detekce sloupců pro názvy akcí
-        const eventNameColumns = headers.filter(h => 
-            h.toLowerCase().includes('název') || 
-            h.toLowerCase().includes('akce') ||
-            h === 'D'
-        );
+        // Detekce sloupců pro názvy akcí - více možností
+        const eventNameColumns = headers.filter(h => {
+            const lower = h.toLowerCase();
+            return lower.includes('název') || 
+                   lower.includes('akce') ||
+                   lower.includes('event') ||
+                   lower.includes('name') ||
+                   h === 'D';
+        });
         
-        // Detekce sloupců pro města
-        const cityColumns = headers.filter(h => 
-            h.toLowerCase().includes('lokalita') || 
-            h.toLowerCase().includes('město') ||
-            h === 'C'
-        );
+        // Detekce sloupců pro města - více možností
+        const cityColumns = headers.filter(h => {
+            const lower = h.toLowerCase();
+            return lower.includes('lokalita') || 
+                   lower.includes('město') ||
+                   lower.includes('city') ||
+                   lower.includes('location') ||
+                   h === 'C';
+        });
         
-        log('📋 Sloupce pro názvy akcí:', eventNameColumns);
-        log('📋 Sloupce pro města:', cityColumns);
+        log('📋 Detekované sloupce:', {
+            nazvy: eventNameColumns,
+            mesta: cityColumns,
+            vsechnySloupce: headers
+        });
         
         // Extrakce názvů akcí
         if (eventNameColumns.length > 0) {
@@ -545,7 +628,7 @@ function updateAutocompleteData(data) {
                     .map(city => city.trim())
             )].sort();
             
-            const existingCities = ['Praha', 'Brno', 'Ostrava', 'Plzeň', 'Liberec'];
+            const existingCities = ['Praha', 'Brno', 'Ostrava', 'Plzeň', 'Liberec', 'Olomouc'];
             const allCities = [...new Set([...existingCities, ...cities])].sort();
             
             updateDatalist('citiesList', allCities);
@@ -600,7 +683,6 @@ function updateStatusIndicator(status, message) {
 function showNotification(message, type = 'info') {
     log(`📢 Notifikace [${type}]: ${message}`);
     
-    // Odstranění existujících notifikací
     document.querySelectorAll('.notification').forEach(n => n.remove());
     
     const notification = document.createElement('div');
@@ -660,7 +742,11 @@ function showCriticalError(error) {
     document.body.innerHTML = errorHTML;
 }
 
-// Kompatibilita se starými moduly
+// ========================================
+// KOMPATIBILITA SE STARÝMI MODULY
+// ========================================
+
+// DataManager kompatibilita
 window.dataManager = {
     loadData: () => loadDataFromSheets(),
     getHistoricalData: (eventName = '', city = '', category = '') => {
@@ -708,7 +794,7 @@ window.dataManager = {
     }
 };
 
-// Utility objekty pro kompatibilitu
+// Utils kompatibilita
 if (typeof utils === 'undefined') {
     window.utils = {
         findColumn: (data, possibleNames) => {
@@ -746,8 +832,247 @@ if (typeof utils === 'undefined') {
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
-        }
+        },
+        parseCSV: (csvText) => parseCSVContent(csvText),
+        
+        // Utility funkce pro fuzzy search
+        fuzzySearch: (needle, haystack, threshold = 0.6) => {
+            const needleLower = needle.toLowerCase();
+            const haystackLower = haystack.toLowerCase();
+            
+            if (haystackLower.includes(needleLower)) {
+                return true;
+            }
+            
+            // Jednoduché porovnání podobnosti
+            const maxLength = Math.max(needleLower.length, haystackLower.length);
+            let matches = 0;
+            
+            for (let i = 0; i < Math.min(needleLower.length, haystackLower.length); i++) {
+                if (needleLower[i] === haystackLower[i]) {
+                    matches++;
+                }
+            }
+            
+            const similarity = matches / maxLength;
+            return similarity >= threshold;
+        },
+        
+        // Odstranění diakritiky
+        removeDiacritics: (str) => {
+            return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        },
+        
+        // Retry funkce pro API volání
+        retry: async (fn, maxAttempts = 3, delay = 1000) => {
+            for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+                try {
+                    return await fn();
+                } catch (error) {
+                    if (attempt === maxAttempts) {
+                        throw error;
+                    }
+                    
+                    log(`Pokus ${attempt} selhal, zkouším znovu za ${delay}ms:`, error.message);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    delay *= 2; // Exponential backoff
+                }
+            }
+        },
+        
+        // Debounce funkce
+        debounce: (func, wait) => {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        },
+        
+        // Cache funkce
+        clearCache: () => {
+            if (typeof globalData !== 'undefined') {
+                if (globalData.weatherCache) globalData.weatherCache.clear();
+                if (globalData.distanceCache) globalData.distanceCache.clear();
+            }
+        },
+        
+        // Extrakce Sheet ID
+        extractSheetId: extractSheetId
     };
 }
 
-log('🔧 Aplikace připravena');
+// CONFIG kompatibilita
+if (typeof CONFIG === 'undefined') {
+    window.CONFIG = {
+        GOOGLE_SHEETS_URL: 'https://docs.google.com/spreadsheets/d/1LclCz9hb0hlb1D92OyVqk6Cbam7PRK6KgAzGgiGs6iE/edit?usp=sharing',
+        WEATHER_API_KEY: 'c2fb0e86623880dc86162892b0fd9c95',
+        MAPS_API_KEY: 'AIzaSyBTTA_MKa6FrxKpkcd7c5-d3FnC6FBLVTc',
+        
+        DONUT_COST: 32,
+        DONUT_PRICE: 50,
+        FRANCHISE_PRICE: 52,
+        HOURLY_WAGE: 150,
+        WORK_HOURS: 10,
+        FUEL_COST_PER_KM: 15,
+        BASE_CITY: 'Praha',
+        
+        CONVERSION_FACTORS: {
+            'čokofest': 2.0,
+            'cokofest': 2.0,
+            'chocolate': 2.0,
+            'čokolád': 2.0,
+            'burger': 1.8,
+            'food festival': 1.5,
+            'gastro': 1.5,
+            'street food': 1.4,
+            'rodinný festival': 1.4,
+            'kulturní akce (rodinná)': 1.3,
+            'veletrh': 1.2,
+            'koncert': 0.9,
+            'majáles': 0.8,
+            'Sportovní akce (dospělí)': 0.7,
+            'ostatní': 1.0
+        },
+        
+        CITY_FACTORS: {
+            'praha': 1.3,
+            'brno': 1.2,
+            'ostrava': 1.1,
+            'plzeň': 1.05,
+            'liberec': 1.0,
+            'olomouc': 1.0,
+            'hradec králové': 0.95,
+            'pardubice': 0.95,
+            'české budějovice': 0.9,
+            'ústí nad labem': 0.9,
+            'default': 0.85
+        },
+        
+        COMPETITION_FACTORS: {
+            1: 1.3,
+            2: 1.0,
+            3: 0.7
+        },
+        
+        WEATHER_FACTORS: {
+            temperature: {
+                ideal: { min: 18, max: 25, factor: 1.2 },
+                hot: { min: 25, max: 35, factor: 0.8 },
+                cold: { min: -10, max: 10, factor: 0.7 }
+            },
+            conditions: {
+                'Clear': 1.15,
+                'Clouds': 1.0,
+                'Rain': 0.5,
+                'Drizzle': 0.6,
+                'Snow': 0.4,
+                'Thunderstorm': 0.3,
+                'Mist': 0.8,
+                'Fog': 0.8
+            }
+        },
+        
+        CACHE_TTL: {
+            weather: 30 * 60 * 1000,
+            distance: 24 * 60 * 60 * 1000,
+            sheets: 5 * 60 * 1000
+        },
+        
+        DEBUG: true
+    };
+}
+
+// Debug funkce kompatibilita
+if (typeof debug === 'undefined') {
+    window.debug = log;
+    window.debugError = logError;
+    window.debugWarn = (...args) => console.warn('[DONULAND WARNING]', ...args);
+}
+
+// GlobalData inicializace pokud neexistuje
+if (typeof globalData === 'undefined') {
+    window.globalData = {
+        historicalData: [],
+        weatherCache: new Map(),
+        distanceCache: new Map(),
+        isLoading: false,
+        lastDataLoad: null
+    };
+}
+
+// ========================================
+// DIAGNOSTICKÉ FUNKCE PRO DEBUGGING
+// ========================================
+
+// Diagnostická funkce pro kontrolu stavu aplikace
+window.getDiagnosticInfo = function() {
+    const info = {
+        timestamp: new Date().toISOString(),
+        appState: {
+            isInitialized: window.donulandApp.isInitialized,
+            dataCount: window.donulandApp.data.historicalData.length,
+            lastDataLoad: window.donulandApp.data.lastDataLoad,
+            isLoading: window.donulandApp.data.isLoading
+        },
+        modules: {
+            CONFIG: typeof CONFIG !== 'undefined',
+            globalData: typeof globalData !== 'undefined',
+            utils: typeof utils !== 'undefined',
+            ui: typeof ui !== 'undefined',
+            navigation: typeof navigation !== 'undefined',
+            predictor: typeof predictor !== 'undefined',
+            analysis: typeof analysis !== 'undefined',
+            weatherService: typeof weatherService !== 'undefined',
+            mapsService: typeof mapsService !== 'undefined',
+            dataManager: typeof dataManager !== 'undefined',
+            settings: typeof settings !== 'undefined'
+        },
+        dataStructure: null,
+        errors: []
+    };
+    
+    // Analýza struktury dat
+    if (window.donulandApp.data.historicalData.length > 0) {
+        const sampleRow = window.donulandApp.data.historicalData[0];
+        info.dataStructure = {
+            rowCount: window.donulandApp.data.historicalData.length,
+            columnCount: Object.keys(sampleRow).length,
+            columns: Object.keys(sampleRow),
+            sampleData: sampleRow
+        };
+    }
+    
+    return info;
+};
+
+// Test načítání dat
+window.testDataLoading = async function() {
+    try {
+        log('🧪 Spouštím test načítání dat...');
+        const data = await loadDataFromSheets();
+        log('✅ Test úspěšný:', data.length, 'záznamů');
+        return { success: true, count: data.length };
+    } catch (error) {
+        logError('❌ Test selhal:', error);
+        return { success: false, error: error.message };
+    }
+};
+
+// ========================================
+// FINÁLNÍ INICIALIZACE
+// ========================================
+
+log('🔧 Aplikační jádro načteno a připraveno');
+
+// Export hlavních funkcí pro globální použití
+window.donulandApp.loadData = loadDataFromSheets;
+window.donulandApp.parseCSV = parseCSVContent;
+window.donulandApp.getDiagnostics = window.getDiagnosticInfo;
+window.donulandApp.testData = window.testDataLoading;
+
+log('✅ Všechny funkce exportovány a dostupné globálně');
